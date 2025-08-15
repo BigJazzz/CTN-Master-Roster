@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roster to ICS Converter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        select:disabled {
+            background-color: #e9ecef;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-3xl">
+        <div class="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-gray-900">Roster to ICS Converter</h1>
+                <p class="text-gray-600 mt-2">Convert your Google Sheets roster into downloadable calendar files.</p>
+            </div>
+
+            <!-- Form for user input -->
+            <form id="rosterForm" class="space-y-6">
+                <div>
+                    <label for="apiKey" class="block text-sm font-medium text-gray-700 mb-1">Google API Key</label>
+                    <input type="text" id="apiKey" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="Your Google Cloud API Key">
+                     <p class="text-xs text-gray-500 mt-1">Enter your API key to load available rosters. <a href="https://developers.google.com/workspace/guides/create-credentials#api-key" target="_blank" class="text-blue-600 hover:underline">How to get an API Key?</a></p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="sheetName" class="block text-sm font-medium text-gray-700 mb-1">Which roster?</label>
+                        <select id="sheetName" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" disabled>
+                            <option>Enter API Key above first</option>
+                        </select>
+                    </div>
+                     <div>
+                        <label for="startLine" class="block text-sm font-medium text-gray-700 mb-1">Starting Line Number</label>
+                        <input type="number" id="startLine" value="3" min="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 3">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="startDate" class="block text-sm font-medium text-gray-700 mb-1">Roster Start Date</label>
+                        <input type="date" id="startDate" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label for="endDate" class="block text-sm font-medium text-gray-700 mb-1">Roster End Date</label>
+                        <input type="date" id="endDate" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                </div>
+
+                 <div>
+                    <label for="rosterBlocks" class="block text-sm font-medium text-gray-700 mb-1">Roster Blocks</label>
+                    <input type="text" id="rosterBlocks" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 3-20, 21-40">
+                </div>
+
+
+                <div class="flex flex-col sm:flex-row gap-4 pt-2">
+                    <button type="submit" id="generateBtn" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200" disabled>
+                        Generate ICS Files
+                    </button>
+                    <button type="button" id="testRunBtn" class="w-full bg-gray-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-200" disabled>
+                        Test Run (First Fortnight)
+                    </button>
+                </div>
+            </form>
+
+            <!-- Area for results, errors, and download links -->
+            <div id="results" class="mt-8 text-left hidden">
+                <div id="loader" class="loader mx-auto my-4 hidden"></div>
+                <p id="status" class="text-lg font-medium text-center"></p>
+                <div id="download-links" class="mt-4 space-y-3"></div>
+                <div id="test-run-output" class="mt-6 hidden"></div>
+            </div>
+        </div>
+        <footer class="text-center text-sm text-gray-500 mt-6">
+            <p>Created with Gemini</p>
+        </footer>
+    </div>
+
+    <script>
+        const SPREADSHEET_ID = '1Ku4Ix3PGqzaAx5-x7R5UyMelztzSc3wOkb6qld_hcvQ';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Set default start and end dates
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            document.getElementById('startDate').value = `${yyyy}-${mm}-${dd}`;
+
+            const endDate = new Date();
+            endDate.setFullYear(endDate.getFullYear() + 1);
+            const endYyyy = endDate.getFullYear();
+            const endMm = String(endDate.getMonth() + 1).padStart(2, '0');
+            const endDd = String(endDate.getDate()).padStart(2, '0');
+            document.getElementById('endDate').value = `${endYyyy}-${endMm}-${endDd}`;
+
+            // Add event listeners
+            document.getElementById('apiKey').addEventListener('blur', fetchAndPopulateSheetNames);
+            document.getElementById('rosterForm').addEventListener('submit', handleFormSubmit);
+            document.getElementById('testRunBtn').addEventListener('click', handleTestRun);
+        });
+        
+        async function fetchAndPopulateSheetNames() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const sheetSelect = document.getElementById('sheetName');
+            const generateBtn = document.getElementById('generateBtn');
+            const testRunBtn = document.getElementById('testRunBtn');
+
+            if (!apiKey) return;
+
+            sheetSelect.innerHTML = '<option>Loading rosters...</option>';
+            sheetSelect.disabled = true;
+            generateBtn.disabled = true;
+            testRunBtn.disabled = true;
+
+            try {
+                const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties.title&key=${apiKey}`;
+                const response = await fetch(url);
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error.message || 'Failed to fetch sheet names.');
+                }
+                const data = await response.json();
+                const sheetNames = data.sheets.map(sheet => sheet.properties.title);
+                
+                sheetSelect.innerHTML = ''; // Clear loading message
+                sheetNames.forEach(name => {
+                    const option = document.createElement('option');
+                    option.value = name;
+                    option.textContent = name;
+                    sheetSelect.appendChild(option);
+                });
+                sheetSelect.disabled = false;
+                generateBtn.disabled = false;
+                testRunBtn.disabled = false;
+
+            } catch (error) {
+                console.error('Error fetching sheet names:', error);
+                sheetSelect.innerHTML = `<option>Error: ${error.message}</option>`;
+                showError('Could not load rosters. Check API key and Sheet permissions.');
+            }
+        }
+
+        function clearResults() {
+            document.getElementById('results').classList.add('hidden'); // Hide initially
+            document.getElementById('loader').classList.add('hidden');
+            document.getElementById('status').textContent = '';
+            document.getElementById('download-links').innerHTML = '';
+            document.getElementById('test-run-output').innerHTML = '';
+            document.getElementById('test-run-output').classList.add('hidden');
+        }
+
+        function prepareForRun() {
+            clearResults();
+            document.getElementById('results').classList.remove('hidden');
+            document.getElementById('loader').classList.remove('hidden');
+        }
+
+        async function handleTestRun() {
+            prepareForRun();
+            const statusP = document.getElementById('status');
+            statusP.textContent = 'Running test...';
+            statusP.className = 'text-lg font-medium text-center text-gray-700';
+
+            try {
+                const { sheetData, startDate, startLine, rosterBlocks } = await getAndValidateInputs();
+                const rosterData = generateRosterData(sheetData, startDate, null, startLine, rosterBlocks, 14);
+                
+                document.getElementById('loader').classList.add('hidden');
+                statusP.textContent = 'Test run complete.';
+                statusP.className = 'text-lg font-medium text-center text-green-600';
+                displayTestTable(rosterData);
+
+            } catch (error) {
+                console.error('Error during test run:', error);
+                showError(error.message);
+            }
+        }
+
+        async function handleFormSubmit(event) {
+            event.preventDefault();
+            prepareForRun();
+            const statusP = document.getElementById('status');
+            statusP.textContent = 'Fetching and processing roster...';
+            statusP.className = 'text-lg font-medium text-center text-gray-700';
+
+            try {
+                const { sheetData, startDate, endDate, startLine, rosterBlocks } = await getAndValidateInputs();
+                const icsData = generateIcsContent(sheetData, startDate, endDate, startLine, rosterBlocks);
+
+                document.getElementById('loader').classList.add('hidden');
+                statusP.textContent = 'Successfully generated calendar files!';
+                statusP.className = 'text-lg font-medium text-center text-green-600';
+                
+                createDownloadLink('shifts.ics', icsData.shifts, 'Download Shifts Calendar');
+                createDownloadLink('daysoff.ics', icsData.daysOff, 'Download Days Off Calendar');
+
+            } catch (error) {
+                console.error('Error during process:', error);
+                showError(error.message);
+            }
+        }
+        
+        async function getAndValidateInputs() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const sheetName = document.getElementById('sheetName').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const startLine = parseInt(document.getElementById('startLine').value, 10);
+            const rosterBlocksStr = document.getElementById('rosterBlocks').value.trim();
+
+            if (!apiKey || !sheetName || !startDate || !endDate || isNaN(startLine) || !rosterBlocksStr) {
+                throw new Error('Please fill in all fields.');
+            }
+
+            if (new Date(endDate) < new Date(startDate)) {
+                throw new Error('End date cannot be before the start date.');
+            }
+
+            const sheetData = await fetchSheetData(sheetName, apiKey);
+            const rosterBlocks = parseRosterBlocks(rosterBlocksStr);
+            if (rosterBlocks.length === 0) {
+                throw new Error('Invalid roster block format. Use format like "3-20, 21-40".');
+            }
+            
+            return { sheetData, startDate, endDate, startLine, rosterBlocks };
+        }
+
+        function showError(message) {
+            document.getElementById('loader').classList.add('hidden');
+            const statusP = document.getElementById('status');
+            statusP.textContent = `Error: ${message}`;
+            statusP.className = 'text-lg font-medium text-center text-red-600';
+        }
+
+        async function fetchSheetData(sheetName, apiKey) {
+            const range = `${sheetName}!A3:O`;
+            const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${apiKey}`;
+            const response = await fetch(url);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error.message || 'Failed to fetch data from Google Sheets.');
+            }
+            const data = await response.json();
+            return data.values || [];
+        }
+
+        function parseRosterBlocks(blocksStr) {
+            return blocksStr.split(',').map(part => {
+                const range = part.trim().split('-');
+                if (range.length !== 2) return null;
+                const start = parseInt(range[0], 10);
+                const end = parseInt(range[1], 10);
+                return (!isNaN(start) && !isNaN(end) && start <= end) ? { start, end } : null;
+            }).filter(Boolean);
+        }
+
+        function generateRosterData(sheetData, startDateStr, endDateStr, startLine, rosterBlocks, numberOfDays = null) {
+            const rosterOutput = [];
+            let currentDate = new Date(startDateStr + 'T00:00:00');
+            const finalDate = endDateStr ? new Date(endDateStr + 'T00:00:00') : null;
+            let currentLine = startLine;
+
+            const dataMap = new Map(sheetData.map(row => [parseInt(row[0], 10), row]).filter(([key]) => !isNaN(key)));
+
+            let dayCounter = 0;
+            while (true) {
+                if (numberOfDays && dayCounter >= numberOfDays) break;
+                if (finalDate && currentDate > finalDate) break;
+                if (!numberOfDays && !finalDate && dayCounter >= 365*5) break; 
+
+                const dayOfWeek = currentDate.getDay();
+                const dayInFortnight = dayCounter % 14;
+                const columnIndex = dayInFortnight < 7 ? dayOfWeek + 1 : dayOfWeek + 8;
+                const rowData = dataMap.get(currentLine);
+                const cellContent = (rowData && rowData[columnIndex]) ? rowData[columnIndex].trim() : '';
+
+                let parsedDetails = 'No Data';
+                let eventType = null;
+                let eventDetails = null;
+
+                if (cellContent.toUpperCase() === 'OFF' || cellContent.toUpperCase() === 'ADO') {
+                    parsedDetails = `All-day: ${cellContent}`;
+                    eventType = 'dayOff';
+                    eventDetails = cellContent;
+                } else if (cellContent) {
+                    const shiftDetails = parseShiftDetails(cellContent);
+                    if (shiftDetails) {
+                        parsedDetails = `Shift: ${shiftDetails.summary} (${shiftDetails.start} - ${shiftDetails.end})`;
+                        eventType = 'shift';
+                        eventDetails = shiftDetails;
+                    } else {
+                        parsedDetails = `Unrecognized format: "${cellContent}"`;
+                    }
+                }
+
+                rosterOutput.push({
+                    date: new Date(currentDate),
+                    rawContent: cellContent || '---',
+                    parsed: parsedDetails,
+                    eventType,
+                    eventDetails
+                });
+
+                const currentBlock = rosterBlocks.find(b => currentLine >= b.start && currentLine <= b.end);
+                currentLine++;
+                if (currentBlock && currentLine > currentBlock.end) {
+                    currentLine = currentBlock.start;
+                }
+                currentDate.setDate(currentDate.getDate() + 1);
+                dayCounter++;
+            }
+            return rosterOutput;
+        }
+
+        function generateIcsContent(sheetData, startDateStr, endDateStr, startLine, rosterBlocks) {
+            const rosterData = generateRosterData(sheetData, startDateStr, endDateStr, startLine, rosterBlocks);
+            let shiftEvents = [];
+            let daysOffEvents = [];
+
+            rosterData.forEach(day => {
+                if (day.eventType === 'shift') {
+                    shiftEvents.push(createIcsEvent(day.date, day.eventDetails, false));
+                } else if (day.eventType === 'dayOff') {
+                    daysOffEvents.push(createIcsEvent(day.date, day.eventDetails, true));
+                }
+            });
+
+            return {
+                shifts: createIcsFile(shiftEvents),
+                daysOff: createIcsFile(daysOffEvents)
+            };
+        }
+
+        function displayTestTable(data) {
+            const container = document.getElementById('test-run-output');
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            let tableHTML = `
+                <h3 class="text-xl font-semibold mb-4 text-left">Test Run Results (First Fortnight)</h3>
+                <div class="overflow-x-auto rounded-lg border border-gray-200">
+                    <table class="min-w-full divide-y divide-gray-200 text-sm text-left">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">Date</th>
+                                <th class="px-4 py-3 font-medium text-gray-900">Day</th>
+                                <th class="px-4 py-3 font-medium text-gray-900">Raw Data from Sheet</th>
+                                <th class="px-4 py-3 font-medium text-gray-900">Parsed Result</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 bg-white">`;
+
+            data.forEach(day => {
+                tableHTML += `
+                    <tr>
+                        <td class="px-4 py-3 text-gray-700 whitespace-nowrap">${day.date.toLocaleDateString()}</td>
+                        <td class="px-4 py-3 text-gray-700">${days[day.date.getDay()]}</td>
+                        <td class="px-4 py-3 text-gray-700 font-mono text-xs">${day.rawContent}</td>
+                        <td class="px-4 py-3 text-gray-700">${day.parsed}</td>
+                    </tr>`;
+            });
+
+            tableHTML += `</tbody></table></div>`;
+            container.innerHTML = tableHTML;
+            container.classList.remove('hidden');
+        }
+
+        function parseShiftDetails(content) {
+            const regex = /^(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})\s+(.*)$/;
+            const match = content.match(regex);
+            if (!match) return null;
+            let [, startTime, endTime, summary] = match;
+            const lastSpaceIndex = summary.lastIndexOf(' ');
+            if (lastSpaceIndex > -1) {
+                summary = summary.substring(0, lastSpaceIndex).trim();
+            }
+            return { start: startTime, end: endTime, summary: summary };
+        }
+
+        function createIcsEvent(date, details, isAllDay) {
+            const uid = `${date.toISOString().slice(0,10)}-${Math.random().toString(36).substr(2, 9)}@roster.app`;
+            const dtstamp = new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15) + 'Z';
+            let eventString = 'BEGIN:VEVENT\n';
+            eventString += `UID:${uid}\n`;
+            eventString += `DTSTAMP:${dtstamp}\n`;
+
+            if (isAllDay) {
+                const yyyy = date.getFullYear();
+                const mm = String(date.getMonth() + 1).padStart(2, '0');
+                const dd = String(date.getDate()).padStart(2, '0');
+                eventString += `DTSTART;VALUE=DATE:${yyyy}${mm}${dd}\n`;
+                eventString += `SUMMARY:${details}\n`;
+            } else {
+                const startDate = new Date(`${date.toISOString().slice(0,10)}T${details.start}:00`);
+                const endDate = new Date(`${date.toISOString().slice(0,10)}T${details.end}:00`);
+                if (endDate < startDate) endDate.setDate(endDate.getDate() + 1);
+                const formatIcsDate = (d) => d.toISOString().replace(/[-:.]/g, '').slice(0, 15);
+                eventString += `DTSTART:${formatIcsDate(startDate)}\n`;
+                eventString += `DTEND:${formatIcsDate(endDate)}\n`;
+                eventString += `SUMMARY:${details.summary}\n`;
+            }
+            eventString += 'END:VEVENT\n';
+            return eventString;
+        }
+
+        function createIcsFile(events) {
+            return `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Gemini//RosterApp//EN\n${events.join('')}END:VCALENDAR`;
+        }
+
+        function createDownloadLink(filename, content, linkText) {
+            const downloadLinksDiv = document.getElementById('download-links');
+            const blob = new Blob([content], { type: 'text/calendar' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.textContent = linkText;
+            a.className = 'block w-full bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors duration-200 text-center';
+            downloadLinksDiv.appendChild(a);
+        }
+    </script>
+</body>
+</html>
