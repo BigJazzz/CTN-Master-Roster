@@ -375,6 +375,16 @@
                 if (finalDate && currentDate > finalDate) break;
                 if (!numberOfDays && !finalDate && dayCounter >= 365*5) break; 
 
+                // ** LOGIC CORRECTION **
+                // Determine the next line number only at the start of a new fortnight
+                if (dayCounter > 0 && dayCounter % 14 === 0) {
+                    const currentBlock = rosterBlocks.find(b => currentLine >= b.start && currentLine <= b.end);
+                    currentLine++;
+                    if (currentBlock && currentLine > currentBlock.end) {
+                        currentLine = currentBlock.start;
+                    }
+                }
+
                 const dayOfWeek = currentDate.getUTCDay();
                 const dayInFortnight = dayCounter % 14;
                 const columnIndex = dayInFortnight < 7 ? dayOfWeek + 1 : dayOfWeek + 8;
@@ -409,11 +419,6 @@
                     lineNumber: currentLine // Pass the line number for diagnostics
                 });
 
-                const currentBlock = rosterBlocks.find(b => currentLine >= b.start && currentLine <= b.end);
-                currentLine++;
-                if (currentBlock && currentLine > currentBlock.end) {
-                    currentLine = currentBlock.start;
-                }
                 currentDate.setUTCDate(currentDate.getUTCDate() + 1);
                 dayCounter++;
             }
