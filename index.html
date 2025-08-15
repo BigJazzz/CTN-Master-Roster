@@ -59,12 +59,12 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label for="startDate" class="block text-sm font-medium text-gray-700 mb-1">Roster Start Date</label>
-                        <input type="date" id="startDate" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
-                        <p class="text-xs text-gray-500 mt-1">Adjusts to the previous Sunday if changed.</p>
+                        <input type="date" id="startDate" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" disabled>
+                        <p class="text-xs text-gray-500 mt-1">Cannot be earlier than the roster's start.</p>
                     </div>
                     <div>
                         <label for="endDate" class="block text-sm font-medium text-gray-700 mb-1">Roster End Date</label>
-                        <input type="date" id="endDate" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                        <input type="date" id="endDate" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" disabled>
                         <p class="text-xs text-gray-500 mt-1">Adjusts to a full fortnight from the start date.</p>
                     </div>
                 </div>
@@ -104,8 +104,6 @@
         };
 
         document.addEventListener('DOMContentLoaded', () => {
-            setDefaultDates();
-            
             document.getElementById('sheetName').addEventListener('change', populateBlockDropdown);
             document.getElementById('startDate').addEventListener('change', () => {
                 adjustStartDate();
@@ -118,43 +116,19 @@
             initializeFromGasUrl();
         });
         
-        function setDefaultDates() {
-            const startDateInput = document.getElementById('startDate');
-            
-            const referenceDate = new Date(Date.UTC(2025, 7, 10)); // Aug 10, 2025 (a Sunday)
-            const today = new Date();
-            const todayUtc = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
-
-            if (todayUtc <= referenceDate) {
-                startDateInput.value = referenceDate.toISOString().split('T')[0];
-            } else {
-                const oneDay = 1000 * 60 * 60 * 24;
-                const diffTime = todayUtc - referenceDate;
-                
-                const fortnightsPassed = Math.floor(diffTime / (oneDay * 14));
-                const daysToAdd = (fortnightsPassed + 1) * 14;
-                
-                const nextCycleStartDate = new Date(referenceDate);
-                nextCycleStartDate.setUTCDate(referenceDate.getUTCDate() + daysToAdd);
-                
-                startDateInput.value = nextCycleStartDate.toISOString().split('T')[0];
-            }
-            
-            const endDateInput = document.getElementById('endDate');
-            const defaultEndDate = new Date(startDateInput.value);
-            defaultEndDate.setDate(defaultEndDate.getDate() + 13);
-            endDateInput.value = defaultEndDate.toISOString().split('T')[0];
-            adjustEndDate();
+        function parseDMY(dateString) {
+            const parts = dateString.match(/(\d+)/g);
+            if (!parts || parts.length < 3) return null;
+            return new Date(Date.UTC(parts[2], parts[1] - 1, parts[0]));
         }
 
         function adjustStartDate() {
             const startDateInput = document.getElementById('startDate');
-            let start = new Date(startDateInput.value + 'T00:00:00Z'); // Use Z for UTC context
-            if (isNaN(start.getTime())) return;
+            let start = new Date(startDateInput.value + 'T00:00:00Z');
+            const minDate = new Date(startDateInput.min + 'T00:00:00Z');
 
-            const dayOfWeek = start.getUTCDay(); // 0=Sun
-            if (dayOfWeek !== 0) {
-                start.setUTCDate(start.getUTCDate() - dayOfWeek);
+            if (isNaN(start.getTime()) || start < minDate) {
+                start = minDate;
                 startDateInput.value = start.toISOString().split('T')[0];
             }
         }
@@ -225,6 +199,8 @@
             const blockSelect = document.getElementById('rosterBlocks');
             const generateBtn = document.getElementById('generateBtn');
             const testRunBtn = document.getElementById('testRunBtn');
+            const startDateInput = document.getElementById('startDate');
+            const endDateInput = document.getElementById('endDate');
 
             blockSelect.innerHTML = '';
             if (!selectedRoster) {
@@ -232,7 +208,20 @@
                 blockSelect.disabled = true;
                 generateBtn.disabled = true;
                 testRunBtn.disabled = true;
+                startDateInput.disabled = true;
+                endDateInput.disabled = true;
                 return;
+            }
+            
+            const rosterStartDate = parseDMY(selectedRoster);
+            if (rosterStartDate) {
+                const formattedDate = rosterStartDate.toISOString().split('T')[0];
+                startDateInput.value = formattedDate;
+                startDateInput.min = formattedDate;
+                endDateInput.min = formattedDate;
+                startDateInput.disabled = false;
+                endDateInput.disabled = false;
+                adjustEndDate();
             }
 
             const blocksForRoster = AppState.blockDataCache[selectedRoster] || [];
@@ -263,25 +252,28 @@
             document.getElementById('test-run-output').classList.add('hidden');
         }
 
-        function prepareForRun() {
+        function prepareForRun(statusMessage) {
             clearResults();
-            document.getElementById('results').classList.remove('hidden');
-            document.getElementById('loader').classList.remove('hidden');
+            const resultsDiv = document.getElementById('results');
+            const statusP = document.getElementById('status');
+            const loader = document.getElementById('loader');
+            
+            resultsDiv.classList.remove('hidden');
+            loader.classList.remove('hidden');
+            statusP.textContent = statusMessage;
+            statusP.className = 'text-lg font-medium text-center text-gray-700';
         }
 
         async function handleTestRun() {
-            prepareForRun();
-            const statusP = document.getElementById('status');
-            statusP.textContent = 'Running test...';
-            statusP.className = 'text-lg font-medium text-center text-gray-700';
-
             try {
                 const { sheetData, startDate, startLine, rosterBlocks } = await getAndValidateInputs();
+                prepareForRun(`Running test from line ${startLine}...`);
+                
                 const rosterData = generateRosterData(sheetData, startDate, null, startLine, rosterBlocks, 14);
                 
                 document.getElementById('loader').classList.add('hidden');
-                statusP.textContent = 'Test run complete.';
-                statusP.className = 'text-lg font-medium text-center text-green-600';
+                document.getElementById('status').textContent = 'Test run complete.';
+                document.getElementById('status').className = 'text-lg font-medium text-center text-green-600';
                 displayTestTable(rosterData);
 
             } catch (error) {
@@ -292,18 +284,15 @@
 
         async function handleFormSubmit(event) {
             event.preventDefault();
-            prepareForRun();
-            const statusP = document.getElementById('status');
-            statusP.textContent = 'Fetching and processing roster...';
-            statusP.className = 'text-lg font-medium text-center text-gray-700';
-
             try {
                 const { sheetData, startDate, endDate, startLine, rosterBlocks } = await getAndValidateInputs();
+                prepareForRun(`Generating calendar from line ${startLine}...`);
+
                 const icsData = generateIcsContent(sheetData, startDate, endDate, startLine, rosterBlocks);
 
                 document.getElementById('loader').classList.add('hidden');
-                statusP.textContent = 'Successfully generated calendar files!';
-                statusP.className = 'text-lg font-medium text-center text-green-600';
+                document.getElementById('status').textContent = 'Successfully generated calendar files!';
+                document.getElementById('status').className = 'text-lg font-medium text-center text-green-600';
                 
                 createDownloadLink('shifts.ics', icsData.shifts, 'Download Shifts Calendar');
                 createDownloadLink('daysoff.ics', icsData.daysOff, 'Download Days Off Calendar');
@@ -335,8 +324,8 @@
         }
 
         function showError(message) {
-            document.getElementById('loader').classList.add('hidden');
             const statusP = document.getElementById('status');
+            document.getElementById('loader').classList.add('hidden');
             statusP.textContent = `Error: ${message}`;
             statusP.className = 'text-lg font-medium text-center text-red-600';
         }
@@ -375,8 +364,6 @@
                 if (finalDate && currentDate > finalDate) break;
                 if (!numberOfDays && !finalDate && dayCounter >= 365*5) break; 
 
-                // ** LOGIC CORRECTION **
-                // Determine the next line number only at the start of a new fortnight
                 if (dayCounter > 0 && dayCounter % 14 === 0) {
                     const currentBlock = rosterBlocks.find(b => currentLine >= b.start && currentLine <= b.end);
                     currentLine++;
@@ -416,7 +403,7 @@
                     parsed: parsedDetails,
                     eventType,
                     eventDetails,
-                    lineNumber: currentLine // Pass the line number for diagnostics
+                    lineNumber: currentLine
                 });
 
                 currentDate.setUTCDate(currentDate.getUTCDate() + 1);
@@ -426,6 +413,7 @@
         }
 
         function generateIcsContent(sheetData, startDateStr, endDateStr, startLine, rosterBlocks) {
+            // This is the critical fix: ensure the main generation uses the same function call
             const rosterData = generateRosterData(sheetData, startDateStr, endDateStr, startLine, rosterBlocks);
             let shiftEvents = [];
             let daysOffEvents = [];
@@ -501,8 +489,6 @@
         }
 
         function parseShiftDetails(content) {
-            // This regex captures: 1. start time, 2. end time, 3. job title (a number, optionally followed by "(i)")
-            // It ignores any text that comes after the job title.
             const regex = /^(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})\s+([\d]+(?:\(i\))?)/;
             const match = content.match(regex);
             if (!match) return null;
@@ -525,7 +511,6 @@
                 eventString += `DTSTART;VALUE=DATE:${yyyy}${mm}${dd}\n`;
                 eventString += `SUMMARY:${details}\n`;
             } else {
-                // Create dates in UTC to avoid timezone shifts
                 const startDate = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), ...details.start.split(':')));
                 const endDate = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), ...details.end.split(':')));
                 
