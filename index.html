@@ -60,6 +60,7 @@
                     <div>
                         <label for="startDate" class="block text-sm font-medium text-gray-700 mb-1">Roster Start Date</label>
                         <input type="date" id="startDate" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                        <p class="text-xs text-gray-500 mt-1">Will be auto-adjusted to the previous Sunday.</p>
                     </div>
                     <div>
                         <label for="endDate" class="block text-sm font-medium text-gray-700 mb-1">Roster End Date</label>
@@ -107,8 +108,8 @@
             
             // Add event listeners
             document.getElementById('sheetName').addEventListener('change', populateBlockDropdown);
-            document.getElementById('startDate').addEventListener('change', adjustEndDate);
-            document.getElementById('endDate').addEventListener('change', adjustEndDate);
+            document.getElementById('startDate').addEventListener('change', adjustDates);
+            document.getElementById('endDate').addEventListener('change', adjustDates);
             document.getElementById('rosterForm').addEventListener('submit', handleFormSubmit);
             document.getElementById('testRunBtn').addEventListener('click', handleTestRun);
 
@@ -118,26 +119,54 @@
         
         function setDefaultDates() {
             const startDateInput = document.getElementById('startDate');
-            const endDateInput = document.getElementById('endDate');
             
+            // The fixed reference date for all fortnight calculations. This MUST be a Sunday.
+            const referenceDate = new Date('2025-08-10T00:00:00');
             const today = new Date();
-            startDateInput.value = today.toISOString().split('T')[0];
+            today.setHours(0, 0, 0, 0); // Normalize today's date to the beginning of the day
 
-            const initialEndDate = new Date();
-            initialEndDate.setDate(initialEndDate.getDate() + 13); // Set an initial 14-day period
-            endDateInput.value = initialEndDate.toISOString().split('T')[0];
-            adjustEndDate(); // Run adjustment to ensure it's a perfect fortnight
+            // If today is before the reference date, default to the reference date.
+            if (today < referenceDate) {
+                startDateInput.value = referenceDate.toISOString().split('T')[0];
+            } else {
+                const oneDay = 1000 * 60 * 60 * 24;
+                const diffTime = today - referenceDate;
+                const diffDays = Math.floor(diffTime / oneDay);
+
+                // Calculate how many full 14-day cycles have passed since the reference date
+                const cyclesPassed = Math.floor(diffDays / 14);
+
+                // The start of the next cycle is the reference date plus the next multiple of 14 days
+                const daysToAdd = (cyclesPassed + 1) * 14;
+                const nextCycleStartDate = new Date(referenceDate);
+                nextCycleStartDate.setDate(referenceDate.getDate() + daysToAdd);
+
+                startDateInput.value = nextCycleStartDate.toISOString().split('T')[0];
+            }
+            
+            adjustDates(); // Run adjustments for both start and end dates
         }
 
-        function adjustEndDate() {
+        function adjustDates() {
             const startDateInput = document.getElementById('startDate');
             const endDateInput = document.getElementById('endDate');
 
-            const start = new Date(startDateInput.value + 'T00:00:00');
-            const end = new Date(endDateInput.value + 'T00:00:00');
+            // Adjust Start Date to be a Sunday
+            let start = new Date(startDateInput.value + 'T00:00:00');
+            if (isNaN(start.getTime())) return; // Exit if date is invalid
 
-            if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
-                return; // Don't adjust if dates are invalid or end is before start
+            const dayOfWeek = start.getDay(); // 0=Sun, 1=Mon, ...
+            if (dayOfWeek !== 0) {
+                start.setDate(start.getDate() - dayOfWeek);
+                startDateInput.value = start.toISOString().split('T')[0];
+            }
+
+            // Adjust End Date to be a multiple of 14 days from the (new) start date
+            let end = new Date(endDateInput.value + 'T00:00:00');
+            if (isNaN(end.getTime()) || end < start) {
+                // If end date is invalid or before start, set it to start + 13 days
+                end = new Date(start);
+                end.setDate(start.getDate() + 13);
             }
 
             const oneDay = 1000 * 60 * 60 * 24;
@@ -154,10 +183,6 @@
 
         async function initializeFromGasUrl() {
             const sheetSelect = document.getElementById('sheetName');
-            const blockSelect = document.getElementById('rosterBlocks');
-            const generateBtn = document.getElementById('generateBtn');
-            const testRunBtn = document.getElementById('testRunBtn');
-
             sheetSelect.innerHTML = '<option>Loading rosters...</option>';
             clearResults();
 
