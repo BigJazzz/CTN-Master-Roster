@@ -276,17 +276,21 @@
                 const { sheetData, startDate, startLine, rosterBlocks } = await getAndValidateInputs();
                 prepareForRun(`Running test from line ${startLine}...`);
                 
-                const rosterData = generateRosterData(sheetData, startDate, null, startLine, rosterBlocks, 14);
-                
-                document.getElementById('loader').classList.add('hidden');
-                document.getElementById('status').textContent = 'Test run complete.';
-                document.getElementById('status').className = 'text-lg font-medium text-center text-green-600';
-                displayTestTable(rosterData);
+                // Use a timeout to ensure the UI updates before the main thread is blocked
+                setTimeout(() => {
+                    const rosterData = generateRosterData(sheetData, startDate, null, startLine, rosterBlocks, 14);
+                    
+                    document.getElementById('loader').classList.add('hidden');
+                    document.getElementById('status').textContent = 'Test run complete.';
+                    document.getElementById('status').className = 'text-lg font-medium text-center text-green-600';
+                    displayTestTable(rosterData);
+                    generateBtn.disabled = false;
+                    testRunBtn.disabled = false;
+                }, 50);
 
             } catch (error) {
                 console.error('Error during test run:', error);
                 showError(error.message);
-            } finally {
                 generateBtn.disabled = false;
                 testRunBtn.disabled = false;
             }
@@ -304,19 +308,23 @@
                 const { sheetData, startDate, endDate, startLine, rosterBlocks } = await getAndValidateInputs();
                 prepareForRun(`Generating calendar from line ${startLine}...`);
 
-                const icsData = generateIcsContent(sheetData, startDate, endDate, startLine, rosterBlocks);
+                // Use a timeout to ensure the UI updates before the main thread is blocked
+                setTimeout(() => {
+                    const icsData = generateIcsContent(sheetData, startDate, endDate, startLine, rosterBlocks);
 
-                document.getElementById('loader').classList.add('hidden');
-                document.getElementById('status').textContent = 'Successfully generated calendar files!';
-                document.getElementById('status').className = 'text-lg font-medium text-center text-green-600';
-                
-                createDownloadLink('shifts.ics', icsData.shifts, 'Download Shifts Calendar');
-                createDownloadLink('daysoff.ics', icsData.daysOff, 'Download Days Off Calendar');
+                    document.getElementById('loader').classList.add('hidden');
+                    document.getElementById('status').textContent = 'Successfully generated calendar files!';
+                    document.getElementById('status').className = 'text-lg font-medium text-center text-green-600';
+                    
+                    createDownloadLink('shifts.ics', icsData.shifts, 'Download Shifts Calendar');
+                    createDownloadLink('daysoff.ics', icsData.daysOff, 'Download Days Off Calendar');
+                    generateBtn.disabled = false;
+                    testRunBtn.disabled = false;
+                }, 50);
 
             } catch (error) {
                 console.error('Error during process:', error);
                 showError(error.message);
-            } finally {
                 generateBtn.disabled = false;
                 testRunBtn.disabled = false;
             }
@@ -535,9 +543,12 @@
                 
                 if (endDate < startDate) endDate.setUTCDate(endDate.getUTCDate() + 1);
 
-                const formatIcsDate = (d) => d.toISOString().replace(/[-:.]/g, '').slice(0, 15) + 'Z';
-                eventString += `DTSTART;TZID=UTC:${formatIcsDate(startDate)}\n`;
-                eventString += `DTEND;TZID=UTC:${formatIcsDate(endDate)}\n`;
+                // ** LOGIC CORRECTION **
+                // This format correctly specifies UTC time for calendar applications.
+                const formatIcsDate = (d) => d.toISOString().replace(/[-.]/g, '').split('T')[0] + 'T' + d.toISOString().split('T')[1].replace(/[:]/g, '');
+                
+                eventString += `DTSTART:${formatIcsDate(startDate)}\n`;
+                eventString += `DTEND:${formatIcsDate(endDate)}\n`;
                 eventString += `SUMMARY:${details.summary}\n`;
             }
             eventString += 'END:VEVENT\n';
