@@ -460,42 +460,46 @@
                             <tr>`;
                 weekData.forEach(day => {
                     const date = day.date.getUTCDate();
-                    let content = day.parsed;
+                    let content = '';
                     let bgColor = 'bg-white';
-                    if (content.startsWith('Shift:')) {
-                        content = content.replace('Shift: ', '').replace(/ \(.*/, ''); // Keep only summary
-                    } else if (content.startsWith('All-day:')) {
-                        content = `<span class="font-bold text-blue-600">${content.replace('All-day: ', '')}</span>`;
+
+                    if (day.eventType === 'shift') {
+                        const details = day.eventDetails;
+                        content = `<div class="font-semibold text-gray-800">${details.start} - ${details.end}</div>
+                                   <div class="mt-1 text-gray-600">${details.summary}</div>`;
+                        bgColor = 'bg-green-50';
+                    } else if (day.eventType === 'dayOff') {
+                        content = `<span class="font-bold text-blue-600">${day.eventDetails}</span>`;
                         bgColor = 'bg-blue-50';
                     } else {
-                        content = '---'
+                        content = '<span class="text-gray-400">---</span>';
+                        bgColor = 'bg-gray-50';
                     }
 
                     tableHTML += `<td class="h-32 align-top p-2 ${bgColor}">
-                                    <div class="font-bold text-gray-800">${date}</div>
-                                    <div class="text-xs mt-1 text-gray-700 break-words">${content}</div>
+                                    <div class="font-bold text-gray-900">${date}</div>
+                                    <div class="text-xs mt-1 break-words">${content}</div>
                                   </td>`;
                 });
                 tableHTML += `</tr>
                         </tbody>
                     </table>
                 </div>`;
-    }
+            }
 
             container.innerHTML = tableHTML;
             container.classList.remove('hidden');
         }
 
         function parseShiftDetails(content) {
-            const regex = /^(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})\s+(.*)$/;
+            // This regex captures: 1. start time, 2. end time, 3. job title (a number, optionally followed by "(i)")
+            // It ignores any text that comes after the job title.
+            const regex = /^(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})\s+([\d]+(?:\(i\))?)/;
             const match = content.match(regex);
             if (!match) return null;
-            let [, startTime, endTime, summary] = match;
-            const lastSpaceIndex = summary.lastIndexOf(' ');
-            if (lastSpaceIndex > -1) {
-                summary = summary.substring(0, lastSpaceIndex).trim();
-            }
-            return { start: startTime, end: endTime, summary: summary };
+            
+            const [, startTime, endTime, summary] = match;
+            return { start: startTime, end: endTime, summary: summary.trim() };
         }
 
         function createIcsEvent(date, details, isAllDay) {
