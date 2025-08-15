@@ -24,7 +24,7 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        select:disabled, input:disabled {
+        select:disabled, input:disabled, button:disabled {
             background-color: #e9ecef;
             opacity: 0.7;
             cursor: not-allowed;
@@ -163,11 +163,12 @@
             const sheetSelect = document.getElementById('sheetName');
             sheetSelect.innerHTML = '<option>Loading rosters...</option>';
             clearResults();
+            const cacheBust = `&_=${new Date().getTime()}`;
 
             try {
                 const [sheetsResponse, blocksResponse] = await Promise.all([
-                    fetch(`${AppState.gasUrl}?action=getSheets`),
-                    fetch(`${AppState.gasUrl}?action=getBlocks`)
+                    fetch(`${AppState.gasUrl}?action=getSheets${cacheBust}`),
+                    fetch(`${AppState.gasUrl}?action=getBlocks${cacheBust}`)
                 ]);
 
                 const sheetsResult = await sheetsResponse.json();
@@ -265,6 +266,12 @@
         }
 
         async function handleTestRun() {
+            const generateBtn = document.getElementById('generateBtn');
+            const testRunBtn = document.getElementById('testRunBtn');
+            
+            generateBtn.disabled = true;
+            testRunBtn.disabled = true;
+
             try {
                 const { sheetData, startDate, startLine, rosterBlocks } = await getAndValidateInputs();
                 prepareForRun(`Running test from line ${startLine}...`);
@@ -279,11 +286,20 @@
             } catch (error) {
                 console.error('Error during test run:', error);
                 showError(error.message);
+            } finally {
+                generateBtn.disabled = false;
+                testRunBtn.disabled = false;
             }
         }
 
         async function handleFormSubmit(event) {
             event.preventDefault();
+            const generateBtn = document.getElementById('generateBtn');
+            const testRunBtn = document.getElementById('testRunBtn');
+            
+            generateBtn.disabled = true;
+            testRunBtn.disabled = true;
+
             try {
                 const { sheetData, startDate, endDate, startLine, rosterBlocks } = await getAndValidateInputs();
                 prepareForRun(`Generating calendar from line ${startLine}...`);
@@ -300,6 +316,9 @@
             } catch (error) {
                 console.error('Error during process:', error);
                 showError(error.message);
+            } finally {
+                generateBtn.disabled = false;
+                testRunBtn.disabled = false;
             }
         }
         
@@ -331,7 +350,8 @@
         }
 
         async function fetchSheetData(gasUrl, sheetName) {
-            const url = `${gasUrl}?action=getSheetData&sheetName=${encodeURIComponent(sheetName)}`;
+            const cacheBust = `&_=${new Date().getTime()}`;
+            const url = `${gasUrl}?action=getSheetData&sheetName=${encodeURIComponent(sheetName)}${cacheBust}`;
             const response = await fetch(url);
             const result = await response.json();
             if (!result.success) {
@@ -413,7 +433,6 @@
         }
 
         function generateIcsContent(sheetData, startDateStr, endDateStr, startLine, rosterBlocks) {
-            // This is the critical fix: ensure the main generation uses the same function call
             const rosterData = generateRosterData(sheetData, startDateStr, endDateStr, startLine, rosterBlocks);
             let shiftEvents = [];
             let daysOffEvents = [];
