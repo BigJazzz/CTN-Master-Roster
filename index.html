@@ -405,7 +405,8 @@
                     rawContent: cellContent || '---',
                     parsed: parsedDetails,
                     eventType,
-                    eventDetails
+                    eventDetails,
+                    lineNumber: currentLine // Pass the line number for diagnostics
                 });
 
                 const currentBlock = rosterBlocks.find(b => currentLine >= b.start && currentLine <= b.end);
@@ -477,7 +478,10 @@
                     }
 
                     tableHTML += `<td class="h-32 align-top p-2 ${bgColor}">
-                                    <div class="font-bold text-gray-900">${date}</div>
+                                    <div class="flex justify-between items-baseline">
+                                        <div class="font-bold text-gray-900">${date}</div>
+                                        <div class="text-xs text-gray-400 font-mono">L${day.lineNumber}</div>
+                                    </div>
                                     <div class="text-xs mt-1 break-words">${content}</div>
                                   </td>`;
                 });
