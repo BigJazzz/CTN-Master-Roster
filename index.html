@@ -276,7 +276,6 @@
                 const { sheetData, startDate, startLine, rosterBlocks } = await getAndValidateInputs();
                 prepareForRun(`Running test from line ${startLine}...`);
                 
-                // Use a timeout to ensure the UI updates before the main thread is blocked
                 setTimeout(() => {
                     const rosterData = generateRosterData(sheetData, startDate, null, startLine, rosterBlocks, 14);
                     
@@ -308,7 +307,6 @@
                 const { sheetData, startDate, endDate, startLine, rosterBlocks } = await getAndValidateInputs();
                 prepareForRun(`Generating calendar from line ${startLine}...`);
 
-                // Use a timeout to ensure the UI updates before the main thread is blocked
                 setTimeout(() => {
                     const icsData = generateIcsContent(sheetData, startDate, endDate, startLine, rosterBlocks);
 
@@ -543,9 +541,7 @@
                 
                 if (endDate < startDate) endDate.setUTCDate(endDate.getUTCDate() + 1);
 
-                // ** LOGIC CORRECTION **
-                // This format correctly specifies UTC time for calendar applications.
-                const formatIcsDate = (d) => d.toISOString().replace(/[-.]/g, '').split('T')[0] + 'T' + d.toISOString().split('T')[1].replace(/[:]/g, '');
+                const formatIcsDate = (d) => d.toISOString().replace(/[-:.]/g, '').slice(0, 15);
                 
                 eventString += `DTSTART:${formatIcsDate(startDate)}\n`;
                 eventString += `DTEND:${formatIcsDate(endDate)}\n`;
