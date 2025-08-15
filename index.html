@@ -24,9 +24,10 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        select:disabled {
+        select:disabled, input:disabled {
             background-color: #e9ecef;
             opacity: 0.7;
+            cursor: not-allowed;
         }
     </style>
 </head>
@@ -39,27 +40,22 @@
                 <p class="text-gray-600 mt-2">Convert your Google Sheets roster into downloadable calendar files.</p>
             </div>
 
-            <!-- Form for user input -->
             <form id="rosterForm" class="space-y-6">
-                <div>
-                    <label for="apiKey" class="block text-sm font-medium text-gray-700 mb-1">Google API Key</label>
-                    <input type="text" id="apiKey" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="Your Google Cloud API Key">
-                     <p class="text-xs text-gray-500 mt-1">Enter your API key to load available rosters. <a href="https://developers.google.com/workspace/guides/create-credentials#api-key" target="_blank" class="text-blue-600 hover:underline">How to get an API Key?</a></p>
-                </div>
-
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label for="sheetName" class="block text-sm font-medium text-gray-700 mb-1">Which roster?</label>
                         <select id="sheetName" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" disabled>
-                            <option>Enter API Key above first</option>
+                            <option>Loading...</option>
                         </select>
                     </div>
                      <div>
-                        <label for="startLine" class="block text-sm font-medium text-gray-700 mb-1">Starting Line Number</label>
-                        <input type="number" id="startLine" value="3" min="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 3">
+                        <label for="rosterBlocks" class="block text-sm font-medium text-gray-700 mb-1">Roster Blocks</label>
+                        <select id="rosterBlocks" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" disabled>
+                           <option>Select a roster first</option>
+                        </select>
                     </div>
                 </div>
-
+                
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label for="startDate" class="block text-sm font-medium text-gray-700 mb-1">Roster Start Date</label>
@@ -68,12 +64,13 @@
                     <div>
                         <label for="endDate" class="block text-sm font-medium text-gray-700 mb-1">Roster End Date</label>
                         <input type="date" id="endDate" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                        <p class="text-xs text-gray-500 mt-1">Will be auto-adjusted to a full fortnight.</p>
                     </div>
                 </div>
-
+                
                  <div>
-                    <label for="rosterBlocks" class="block text-sm font-medium text-gray-700 mb-1">Roster Blocks</label>
-                    <input type="text" id="rosterBlocks" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 3-20, 21-40">
+                    <label for="startLine" class="block text-sm font-medium text-gray-700 mb-1">Starting Line Number</label>
+                    <input type="number" id="startLine" value="3" min="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 3">
                 </div>
 
 
@@ -87,7 +84,6 @@
                 </div>
             </form>
 
-            <!-- Area for results, errors, and download links -->
             <div id="results" class="mt-8 text-left hidden">
                 <div id="loader" class="loader mx-auto my-4 hidden"></div>
                 <p id="status" class="text-lg font-medium text-center"></p>
@@ -101,72 +97,136 @@
     </div>
 
     <script>
-        const SPREADSHEET_ID = '1Ku4Ix3PGqzaAx5-x7R5UyMelztzSc3wOkb6qld_hcvQ';
+        const AppState = {
+            blockDataCache: {},
+            gasUrl: 'https://script.google.com/macros/s/AKfycbxYIvUCKHqVT5ygPoXSi1F1bkvOOg41eaX-2UQq8Pfr9JHrxd7bALo1Vaey9FNrk3Ds/exec'
+        };
 
         document.addEventListener('DOMContentLoaded', () => {
-            // Set default start and end dates
-            const today = new Date();
-            const yyyy = today.getFullYear();
-            const mm = String(today.getMonth() + 1).padStart(2, '0');
-            const dd = String(today.getDate()).padStart(2, '0');
-            document.getElementById('startDate').value = `${yyyy}-${mm}-${dd}`;
-
-            const endDate = new Date();
-            endDate.setFullYear(endDate.getFullYear() + 1);
-            const endYyyy = endDate.getFullYear();
-            const endMm = String(endDate.getMonth() + 1).padStart(2, '0');
-            const endDd = String(endDate.getDate()).padStart(2, '0');
-            document.getElementById('endDate').value = `${endYyyy}-${endMm}-${endDd}`;
-
+            setDefaultDates();
+            
             // Add event listeners
-            document.getElementById('apiKey').addEventListener('blur', fetchAndPopulateSheetNames);
+            document.getElementById('sheetName').addEventListener('change', populateBlockDropdown);
+            document.getElementById('startDate').addEventListener('change', adjustEndDate);
+            document.getElementById('endDate').addEventListener('change', adjustEndDate);
             document.getElementById('rosterForm').addEventListener('submit', handleFormSubmit);
             document.getElementById('testRunBtn').addEventListener('click', handleTestRun);
+
+            // Automatically load rosters on page load
+            initializeFromGasUrl();
         });
         
-        async function fetchAndPopulateSheetNames() {
-            const apiKey = document.getElementById('apiKey').value.trim();
+        function setDefaultDates() {
+            const startDateInput = document.getElementById('startDate');
+            const endDateInput = document.getElementById('endDate');
+            
+            const today = new Date();
+            startDateInput.value = today.toISOString().split('T')[0];
+
+            const initialEndDate = new Date();
+            initialEndDate.setDate(initialEndDate.getDate() + 13); // Set an initial 14-day period
+            endDateInput.value = initialEndDate.toISOString().split('T')[0];
+            adjustEndDate(); // Run adjustment to ensure it's a perfect fortnight
+        }
+
+        function adjustEndDate() {
+            const startDateInput = document.getElementById('startDate');
+            const endDateInput = document.getElementById('endDate');
+
+            const start = new Date(startDateInput.value + 'T00:00:00');
+            const end = new Date(endDateInput.value + 'T00:00:00');
+
+            if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
+                return; // Don't adjust if dates are invalid or end is before start
+            }
+
+            const oneDay = 1000 * 60 * 60 * 24;
+            const diffDays = Math.round((end - start) / oneDay) + 1; // Inclusive day count
+
+            const numFortnights = Math.ceil(diffDays / 14);
+            const totalDays = numFortnights * 14;
+
+            const newEndDate = new Date(start);
+            newEndDate.setDate(start.getDate() + totalDays - 1);
+
+            endDateInput.value = newEndDate.toISOString().split('T')[0];
+        }
+
+        async function initializeFromGasUrl() {
             const sheetSelect = document.getElementById('sheetName');
+            const blockSelect = document.getElementById('rosterBlocks');
             const generateBtn = document.getElementById('generateBtn');
             const testRunBtn = document.getElementById('testRunBtn');
 
-            if (!apiKey) return;
-
             sheetSelect.innerHTML = '<option>Loading rosters...</option>';
-            sheetSelect.disabled = true;
-            generateBtn.disabled = true;
-            testRunBtn.disabled = true;
+            clearResults();
 
             try {
-                const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties.title&key=${apiKey}`;
-                const response = await fetch(url);
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error.message || 'Failed to fetch sheet names.');
-                }
-                const data = await response.json();
-                const sheetNames = data.sheets.map(sheet => sheet.properties.title);
+                const [sheetsResponse, blocksResponse] = await Promise.all([
+                    fetch(`${AppState.gasUrl}?action=getSheets`),
+                    fetch(`${AppState.gasUrl}?action=getBlocks`)
+                ]);
+
+                const sheetsResult = await sheetsResponse.json();
+                if (!sheetsResult.success) throw new Error(sheetsResult.error);
                 
-                sheetSelect.innerHTML = ''; // Clear loading message
-                sheetNames.forEach(name => {
+                const blocksResult = await blocksResponse.json();
+                if (!blocksResult.success) throw new Error(blocksResult.error);
+                
+                AppState.blockDataCache = blocksResult.data;
+                
+                sheetSelect.innerHTML = '<option value="">-- Select a roster --</option>';
+                sheetsResult.data.forEach(name => {
                     const option = document.createElement('option');
                     option.value = name;
                     option.textContent = name;
                     sheetSelect.appendChild(option);
                 });
                 sheetSelect.disabled = false;
-                generateBtn.disabled = false;
-                testRunBtn.disabled = false;
 
             } catch (error) {
-                console.error('Error fetching sheet names:', error);
-                sheetSelect.innerHTML = `<option>Error: ${error.message}</option>`;
-                showError('Could not load rosters. Check API key and Sheet permissions.');
+                console.error('Initialization Error:', error);
+                showError(`Initialization failed: ${error.message}. The script URL may be incorrect or deployment needs to be updated.`);
+                sheetSelect.innerHTML = `<option>Error loading rosters</option>`;
+            }
+        }
+        
+        function populateBlockDropdown() {
+            const selectedRoster = document.getElementById('sheetName').value;
+            const blockSelect = document.getElementById('rosterBlocks');
+            const generateBtn = document.getElementById('generateBtn');
+            const testRunBtn = document.getElementById('testRunBtn');
+
+            blockSelect.innerHTML = '';
+            if (!selectedRoster) {
+                blockSelect.innerHTML = '<option>Select a roster first</option>';
+                blockSelect.disabled = true;
+                generateBtn.disabled = true;
+                testRunBtn.disabled = true;
+                return;
+            }
+
+            const blocksForRoster = AppState.blockDataCache[selectedRoster] || [];
+            if (blocksForRoster.length > 0) {
+                blocksForRoster.forEach(block => {
+                    const option = document.createElement('option');
+                    option.value = block;
+                    option.textContent = block;
+                    blockSelect.appendChild(option);
+                });
+                blockSelect.disabled = false;
+                generateBtn.disabled = false;
+                testRunBtn.disabled = false;
+            } else {
+                blockSelect.innerHTML = '<option>No blocks found for this roster</option>';
+                blockSelect.disabled = true;
+                generateBtn.disabled = true;
+                testRunBtn.disabled = true;
             }
         }
 
         function clearResults() {
-            document.getElementById('results').classList.add('hidden'); // Hide initially
+            document.getElementById('results').classList.add('hidden');
             document.getElementById('loader').classList.add('hidden');
             document.getElementById('status').textContent = '';
             document.getElementById('download-links').innerHTML = '';
@@ -226,25 +286,20 @@
         }
         
         async function getAndValidateInputs() {
-            const apiKey = document.getElementById('apiKey').value.trim();
             const sheetName = document.getElementById('sheetName').value;
             const startDate = document.getElementById('startDate').value;
             const endDate = document.getElementById('endDate').value;
             const startLine = parseInt(document.getElementById('startLine').value, 10);
-            const rosterBlocksStr = document.getElementById('rosterBlocks').value.trim();
+            const rosterBlocksStr = document.getElementById('rosterBlocks').value;
 
-            if (!apiKey || !sheetName || !startDate || !endDate || isNaN(startLine) || !rosterBlocksStr) {
+            if (!sheetName || !startDate || !endDate || isNaN(startLine) || !rosterBlocksStr) {
                 throw new Error('Please fill in all fields.');
             }
 
-            if (new Date(endDate) < new Date(startDate)) {
-                throw new Error('End date cannot be before the start date.');
-            }
-
-            const sheetData = await fetchSheetData(sheetName, apiKey);
+            const sheetData = await fetchSheetData(AppState.gasUrl, sheetName);
             const rosterBlocks = parseRosterBlocks(rosterBlocksStr);
             if (rosterBlocks.length === 0) {
-                throw new Error('Invalid roster block format. Use format like "3-20, 21-40".');
+                throw new Error('Invalid roster block format. Use format like "3-20".');
             }
             
             return { sheetData, startDate, endDate, startLine, rosterBlocks };
@@ -257,16 +312,14 @@
             statusP.className = 'text-lg font-medium text-center text-red-600';
         }
 
-        async function fetchSheetData(sheetName, apiKey) {
-            const range = `${sheetName}!A3:O`;
-            const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${apiKey}`;
+        async function fetchSheetData(gasUrl, sheetName) {
+            const url = `${gasUrl}?action=getSheetData&sheetName=${encodeURIComponent(sheetName)}`;
             const response = await fetch(url);
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error.message || 'Failed to fetch data from Google Sheets.');
+            const result = await response.json();
+            if (!result.success) {
+                throw new Error(result.error || 'Failed to fetch data via Apps Script.');
             }
-            const data = await response.json();
-            return data.values || [];
+            return result.data || [];
         }
 
         function parseRosterBlocks(blocksStr) {
@@ -297,7 +350,7 @@
                 const dayInFortnight = dayCounter % 14;
                 const columnIndex = dayInFortnight < 7 ? dayOfWeek + 1 : dayOfWeek + 8;
                 const rowData = dataMap.get(currentLine);
-                const cellContent = (rowData && rowData[columnIndex]) ? rowData[columnIndex].trim() : '';
+                const cellContent = (rowData && rowData[columnIndex]) ? String(rowData[columnIndex]).trim() : '';
 
                 let parsedDetails = 'No Data';
                 let eventType = null;
