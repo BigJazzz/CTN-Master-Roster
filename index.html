@@ -97,6 +97,32 @@
         </footer>
     </div>
 
+    <!-- Sanity Check Modal -->
+    <div id="dateSanityCheckModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+        <div class="relative top-20 mx-auto p-5 border w-full max-w-sm shadow-lg rounded-md bg-white">
+            <div class="mt-3 text-center">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Incorrect Start Date</h3>
+                <div class="mt-2 px-7 py-3">
+                    <p class="text-sm text-gray-500">
+                        The selected start date is not the beginning of a fortnight. Please choose one of the correct dates below to continue.
+                    </p>
+                </div>
+                <div class="items-center px-4 py-3 space-y-2">
+                    <button id="modalPrevDateBtn" class="w-full px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                        <!-- Date will be injected here -->
+                    </button>
+                    <button id="modalNextDateBtn" class="w-full px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                        <!-- Date will be injected here -->
+                    </button>
+                    <button id="modalCancelBtn" class="w-full px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
     <script>
         const AppState = {
             blockDataCache: {},
@@ -120,8 +146,8 @@
             endDateInput.addEventListener('change', adjustEndDate);
             endDateInput.addEventListener('blur', adjustEndDate);
 
-            document.getElementById('rosterForm').addEventListener('submit', handleFormSubmit);
-            document.getElementById('testRunBtn').addEventListener('click', handleTestRun);
+            document.getElementById('rosterForm').addEventListener('submit', (e) => runProcess(e, false));
+            document.getElementById('testRunBtn').addEventListener('click', (e) => runProcess(e, true));
 
             if (!getCookie('testRunCompleted')) {
                 localStorage.removeItem('rosterAppCache');
@@ -362,7 +388,74 @@
             statusP.className = 'text-lg font-medium text-center text-gray-700';
         }
 
-        async function handleTestRun() {
+        function isValidFortnightStartDate(date) {
+            const referenceDate = AppState.rosterDates[0];
+            if (!referenceDate) return false; // Cannot validate without a reference
+
+            const oneDay = 1000 * 60 * 60 * 24;
+            const diffDays = Math.round((date - referenceDate) / oneDay);
+
+            return diffDays % 14 === 0;
+        }
+
+        function runProcess(event, isTestRun) {
+            event.preventDefault();
+            const startDateInput = document.getElementById('startDate');
+            const start = new Date(startDateInput.value + 'T00:00:00Z');
+
+            if (isValidFortnightStartDate(start)) {
+                if (isTestRun) {
+                    proceedWithTestRun();
+                } else {
+                    proceedWithFormSubmit();
+                }
+            } else {
+                const oneDay = 1000 * 60 * 60 * 24;
+                const referenceDate = AppState.rosterDates[0];
+                const diffDays = Math.round((start - referenceDate) / oneDay);
+                const remainder = diffDays % 14;
+
+                const prevDate = new Date(start);
+                prevDate.setUTCDate(start.getUTCDate() - remainder);
+
+                const nextDate = new Date(start);
+                nextDate.setUTCDate(start.getUTCDate() + (14 - remainder));
+
+                const modal = document.getElementById('dateSanityCheckModal');
+                const prevBtn = document.getElementById('modalPrevDateBtn');
+                const nextBtn = document.getElementById('modalNextDateBtn');
+                const cancelBtn = document.getElementById('modalCancelBtn');
+
+                prevBtn.textContent = `Use Previous: ${prevDate.toLocaleDateString()}`;
+                nextBtn.textContent = `Use Next: ${nextDate.toLocaleDateString()}`;
+
+                const onPrevClick = () => {
+                    startDateInput.value = prevDate.toISOString().split('T')[0];
+                    adjustEndDate();
+                    if (isTestRun) proceedWithTestRun(); else proceedWithFormSubmit();
+                    modal.classList.add('hidden');
+                };
+
+                const onNextClick = () => {
+                    startDateInput.value = nextDate.toISOString().split('T')[0];
+                    adjustEndDate();
+                    if (isTestRun) proceedWithTestRun(); else proceedWithFormSubmit();
+                    modal.classList.add('hidden');
+                };
+
+                const onCancelClick = () => {
+                    modal.classList.add('hidden');
+                };
+
+                prevBtn.onclick = onPrevClick;
+                nextBtn.onclick = onNextClick;
+                cancelBtn.onclick = onCancelClick;
+
+                modal.classList.remove('hidden');
+            }
+        }
+
+        async function proceedWithTestRun() {
             const generateBtn = document.getElementById('generateBtn');
             const testRunBtn = document.getElementById('testRunBtn');
             
@@ -394,8 +487,7 @@
             }
         }
 
-        async function handleFormSubmit(event) {
-            event.preventDefault();
+        async function proceedWithFormSubmit() {
             const generateBtn = document.getElementById('generateBtn');
             const testRunBtn = document.getElementById('testRunBtn');
             
