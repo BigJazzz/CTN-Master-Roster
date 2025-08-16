@@ -100,6 +100,7 @@
     <script>
         const AppState = {
             blockDataCache: {},
+            rosterDates: [],
             gasUrl: 'https://script.google.com/macros/s/AKfycbxYIvUCKHqVT5ygPoXSi1F1bkvOOg41eaX-2UQq8Pfr9JHrxd7bALo1Vaey9FNrk3Ds/exec'
         };
 
@@ -153,8 +154,16 @@
             const numFortnights = Math.ceil(diffDays / 14);
             const totalDays = numFortnights * 14;
 
-            const newEndDate = new Date(start);
+            let newEndDate = new Date(start);
             newEndDate.setUTCDate(start.getUTCDate() + totalDays - 1);
+
+            const maxDateStr = endDateInput.max;
+            if (maxDateStr) {
+                const maxDate = new Date(maxDateStr + 'T00:00:00Z');
+                if (newEndDate > maxDate) {
+                    newEndDate = maxDate;
+                }
+            }
 
             endDateInput.value = newEndDate.toISOString().split('T')[0];
         }
@@ -178,9 +187,16 @@
                 if (!blocksResult.success) throw new Error(blocksResult.error);
                 
                 AppState.blockDataCache = blocksResult.data;
+                const sheetNames = sheetsResult.data;
+
+                // Parse and sort the roster dates for later use
+                AppState.rosterDates = sheetNames
+                    .map(name => parseDMY(name))
+                    .filter(date => date !== null)
+                    .sort((a, b) => a - b);
                 
                 sheetSelect.innerHTML = '<option value="">-- Select a roster --</option>';
-                sheetsResult.data.forEach(name => {
+                sheetNames.forEach(name => {
                     const option = document.createElement('option');
                     option.value = name;
                     option.textContent = name;
@@ -222,6 +238,25 @@
                 endDateInput.min = formattedDate;
                 startDateInput.disabled = false;
                 endDateInput.disabled = false;
+
+                // Find the index of the current roster's start date
+                const currentIndex = AppState.rosterDates.findIndex(d => d.getTime() === rosterStartDate.getTime());
+
+                // Check if there is a next roster date to set a maximum end date
+                if (currentIndex > -1 && currentIndex < AppState.rosterDates.length - 1) {
+                    const nextRosterStartDate = AppState.rosterDates[currentIndex + 1];
+                    const maxEndDate = new Date(nextRosterStartDate);
+                    maxEndDate.setUTCDate(maxEndDate.getUTCDate() - 1); // Day before next roster
+                    endDateInput.max = maxEndDate.toISOString().split('T')[0];
+                } else {
+                    // If it's the last roster, remove any max date restriction
+                    endDateInput.removeAttribute('max');
+                }
+                
+                // Set a default end date (start + 1 fortnight) and then adjust
+                const defaultEndDate = new Date(rosterStartDate);
+                defaultEndDate.setUTCDate(rosterStartDate.getUTCDate() + 13);
+                endDateInput.value = defaultEndDate.toISOString().split('T')[0];
                 adjustEndDate();
             }
 
