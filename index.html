@@ -105,16 +105,24 @@
         };
 
         document.addEventListener('DOMContentLoaded', () => {
+            const startDateInput = document.getElementById('startDate');
+            const endDateInput = document.getElementById('endDate');
+
             document.getElementById('sheetName').addEventListener('change', populateBlockDropdown);
-            document.getElementById('startDate').addEventListener('change', () => {
+            
+            const handleStartDateChange = () => {
                 adjustStartDate();
                 adjustEndDate();
-            });
-            document.getElementById('endDate').addEventListener('change', adjustEndDate);
+            };
+            startDateInput.addEventListener('change', handleStartDateChange);
+            startDateInput.addEventListener('blur', handleStartDateChange);
+
+            endDateInput.addEventListener('change', adjustEndDate);
+            endDateInput.addEventListener('blur', adjustEndDate);
+
             document.getElementById('rosterForm').addEventListener('submit', handleFormSubmit);
             document.getElementById('testRunBtn').addEventListener('click', handleTestRun);
 
-            // Check if the cookie exists. If not, clear the local storage cache.
             if (!getCookie('testRunCompleted')) {
                 localStorage.removeItem('rosterAppCache');
             }
@@ -205,7 +213,6 @@
             sheetSelect.innerHTML = '<option>Loading rosters...</option>';
             clearResults();
             
-            // Try to load from cache first
             const cachedData = localStorage.getItem('rosterAppCache');
             if (cachedData) {
                 const { sheets, blocks } = JSON.parse(cachedData);
@@ -213,7 +220,6 @@
                 return;
             }
 
-            // If no cache, fetch from network
             const cacheBust = `&_=${new Date().getTime()}`;
             try {
                 const [sheetsResponse, blocksResponse] = await Promise.all([
@@ -375,7 +381,7 @@
                     document.getElementById('status').className = 'text-lg font-medium text-center text-green-600';
                     displayTestTable(rosterData);
                     setCookie('testRunCompleted', 'true', 7);
-                    // Save the fetched data to local storage
+                    
                     const cachePayload = { sheets: AppState.rosterDates.map(d => d.toLocaleDateString('en-GB')), blocks: AppState.blockDataCache };
                     localStorage.setItem('rosterAppCache', JSON.stringify(cachePayload));
                     updateButtonStates();
