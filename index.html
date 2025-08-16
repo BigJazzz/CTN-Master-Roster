@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roster to ICS Converter</title>
+    <title>Master Roster Calendar Import</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -36,8 +36,8 @@
     <div class="container mx-auto p-4 md:p-8 max-w-4xl">
         <div class="bg-white rounded-2xl shadow-lg p-6 md:p-8">
             <div class="text-center mb-8">
-                <h1 class="text-3xl font-bold text-gray-900">Roster to ICS Converter</h1>
-                <p class="text-gray-600 mt-2">Convert your Google Sheets roster into downloadable calendar files.</p>
+                <h1 class="text-3xl font-bold text-gray-900">Master Roster Calendar Import</h1>
+                <p class="text-gray-600 mt-2">Import the master roster to your digital calendar.</p>
             </div>
 
             <form id="rosterForm" class="space-y-6">
@@ -76,11 +76,11 @@
 
 
                 <div class="flex flex-col sm:flex-row gap-4 pt-2">
-                    <button type="submit" id="generateBtn" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200" disabled>
-                        Generate ICS Files
-                    </button>
                     <button type="button" id="testRunBtn" class="w-full bg-gray-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-200" disabled>
                         Test Run (First Fortnight)
+                    </button>
+                    <button type="submit" id="generateBtn" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200" disabled>
+                        Generate ICS Files
                     </button>
                 </div>
             </form>
@@ -114,8 +114,34 @@
             document.getElementById('rosterForm').addEventListener('submit', handleFormSubmit);
             document.getElementById('testRunBtn').addEventListener('click', handleTestRun);
 
+            // Check if the cookie exists. If not, clear the local storage cache.
+            if (!getCookie('testRunCompleted')) {
+                localStorage.removeItem('rosterAppCache');
+            }
+
             initializeFromGasUrl();
         });
+
+        function setCookie(name, value, days) {
+            let expires = "";
+            if (days) {
+                const date = new Date();
+                date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+                expires = "; expires=" + date.toUTCString();
+            }
+            document.cookie = name + "=" + (value || "") + expires + "; path=/; SameSite=Lax";
+        }
+
+        function getCookie(name) {
+            const nameEQ = name + "=";
+            const ca = document.cookie.split(';');
+            for (let i = 0; i < ca.length; i++) {
+                let c = ca[i];
+                while (c.charAt(0) == ' ') c = c.substring(1, c.length);
+                if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
+            }
+            return null;
+        }
         
         function parseDMY(dateString) {
             const parts = dateString.match(/(\d+)/g);
@@ -127,11 +153,17 @@
             const startDateInput = document.getElementById('startDate');
             let start = new Date(startDateInput.value + 'T00:00:00Z');
             const minDate = new Date(startDateInput.min + 'T00:00:00Z');
+            const maxDate = startDateInput.max ? new Date(startDateInput.max + 'T00:00:00Z') : null;
 
             if (isNaN(start.getTime()) || start < minDate) {
                 start = minDate;
-                startDateInput.value = start.toISOString().split('T')[0];
             }
+            
+            if (maxDate && start > maxDate) {
+                start = maxDate;
+            }
+            
+            startDateInput.value = start.toISOString().split('T')[0];
         }
 
         function adjustEndDate() {
@@ -172,8 +204,17 @@
             const sheetSelect = document.getElementById('sheetName');
             sheetSelect.innerHTML = '<option>Loading rosters...</option>';
             clearResults();
-            const cacheBust = `&_=${new Date().getTime()}`;
+            
+            // Try to load from cache first
+            const cachedData = localStorage.getItem('rosterAppCache');
+            if (cachedData) {
+                const { sheets, blocks } = JSON.parse(cachedData);
+                populateInitialDropdowns(sheets, blocks);
+                return;
+            }
 
+            // If no cache, fetch from network
+            const cacheBust = `&_=${new Date().getTime()}`;
             try {
                 const [sheetsResponse, blocksResponse] = await Promise.all([
                     fetch(`${AppState.gasUrl}?action=getSheets${cacheBust}`),
@@ -186,23 +227,7 @@
                 const blocksResult = await blocksResponse.json();
                 if (!blocksResult.success) throw new Error(blocksResult.error);
                 
-                AppState.blockDataCache = blocksResult.data;
-                const sheetNames = sheetsResult.data;
-
-                // Parse and sort the roster dates for later use
-                AppState.rosterDates = sheetNames
-                    .map(name => parseDMY(name))
-                    .filter(date => date !== null)
-                    .sort((a, b) => a - b);
-                
-                sheetSelect.innerHTML = '<option value="">-- Select a roster --</option>';
-                sheetNames.forEach(name => {
-                    const option = document.createElement('option');
-                    option.value = name;
-                    option.textContent = name;
-                    sheetSelect.appendChild(option);
-                });
-                sheetSelect.disabled = false;
+                populateInitialDropdowns(sheetsResult.data, blocksResult.data);
 
             } catch (error) {
                 console.error('Initialization Error:', error);
@@ -210,23 +235,57 @@
                 sheetSelect.innerHTML = `<option>Error loading rosters</option>`;
             }
         }
+
+        function populateInitialDropdowns(sheetNames, blockData) {
+            const sheetSelect = document.getElementById('sheetName');
+            AppState.blockDataCache = blockData;
+            AppState.rosterDates = sheetNames
+                .map(name => parseDMY(name))
+                .filter(date => date !== null)
+                .sort((a, b) => a - b);
+            
+            sheetSelect.innerHTML = '<option value="">-- Select a roster --</option>';
+            sheetNames.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                sheetSelect.appendChild(option);
+            });
+            sheetSelect.disabled = false;
+        }
         
+        function updateButtonStates() {
+            const generateBtn = document.getElementById('generateBtn');
+            const testRunBtn = document.getElementById('testRunBtn');
+            const rosterSelected = !!document.getElementById('sheetName').value;
+            const blockSelected = !!document.getElementById('rosterBlocks').value;
+            const formIsValid = rosterSelected && blockSelected;
+
+            if (formIsValid) {
+                testRunBtn.disabled = false;
+                if (getCookie('testRunCompleted') === 'true') {
+                    generateBtn.disabled = false;
+                } else {
+                    generateBtn.disabled = true;
+                }
+            } else {
+                testRunBtn.disabled = true;
+                generateBtn.disabled = true;
+            }
+        }
+
         function populateBlockDropdown() {
             const selectedRoster = document.getElementById('sheetName').value;
             const blockSelect = document.getElementById('rosterBlocks');
-            const generateBtn = document.getElementById('generateBtn');
-            const testRunBtn = document.getElementById('testRunBtn');
             const startDateInput = document.getElementById('startDate');
             const endDateInput = document.getElementById('endDate');
 
             blockSelect.innerHTML = '';
             if (!selectedRoster) {
                 blockSelect.innerHTML = '<option>Select a roster first</option>';
-                blockSelect.disabled = true;
-                generateBtn.disabled = true;
-                testRunBtn.disabled = true;
                 startDateInput.disabled = true;
                 endDateInput.disabled = true;
+                updateButtonStates();
                 return;
             }
             
@@ -239,21 +298,23 @@
                 startDateInput.disabled = false;
                 endDateInput.disabled = false;
 
-                // Find the index of the current roster's start date
                 const currentIndex = AppState.rosterDates.findIndex(d => d.getTime() === rosterStartDate.getTime());
 
-                // Check if there is a next roster date to set a maximum end date
                 if (currentIndex > -1 && currentIndex < AppState.rosterDates.length - 1) {
                     const nextRosterStartDate = AppState.rosterDates[currentIndex + 1];
                     const maxEndDate = new Date(nextRosterStartDate);
-                    maxEndDate.setUTCDate(maxEndDate.getUTCDate() - 1); // Day before next roster
+                    maxEndDate.setUTCDate(maxEndDate.getUTCDate() - 1);
                     endDateInput.max = maxEndDate.toISOString().split('T')[0];
+
+                    const latestStartDate = new Date(maxEndDate);
+                    latestStartDate.setUTCDate(latestStartDate.getUTCDate() - 13);
+                    startDateInput.max = latestStartDate.toISOString().split('T')[0];
+
                 } else {
-                    // If it's the last roster, remove any max date restriction
                     endDateInput.removeAttribute('max');
+                    startDateInput.removeAttribute('max');
                 }
                 
-                // Set a default end date (start + 1 fortnight) and then adjust
                 const defaultEndDate = new Date(rosterStartDate);
                 defaultEndDate.setUTCDate(rosterStartDate.getUTCDate() + 13);
                 endDateInput.value = defaultEndDate.toISOString().split('T')[0];
@@ -268,15 +329,10 @@
                     option.textContent = block;
                     blockSelect.appendChild(option);
                 });
-                blockSelect.disabled = false;
-                generateBtn.disabled = false;
-                testRunBtn.disabled = false;
             } else {
                 blockSelect.innerHTML = '<option>No blocks found for this roster</option>';
-                blockSelect.disabled = true;
-                generateBtn.disabled = true;
-                testRunBtn.disabled = true;
             }
+            updateButtonStates();
         }
 
         function clearResults() {
@@ -318,15 +374,17 @@
                     document.getElementById('status').textContent = 'Test run complete.';
                     document.getElementById('status').className = 'text-lg font-medium text-center text-green-600';
                     displayTestTable(rosterData);
-                    generateBtn.disabled = false;
-                    testRunBtn.disabled = false;
+                    setCookie('testRunCompleted', 'true', 7);
+                    // Save the fetched data to local storage
+                    const cachePayload = { sheets: AppState.rosterDates.map(d => d.toLocaleDateString('en-GB')), blocks: AppState.blockDataCache };
+                    localStorage.setItem('rosterAppCache', JSON.stringify(cachePayload));
+                    updateButtonStates();
                 }, 50);
 
             } catch (error) {
                 console.error('Error during test run:', error);
                 showError(error.message);
-                generateBtn.disabled = false;
-                testRunBtn.disabled = false;
+                updateButtonStates();
             }
         }
 
@@ -351,15 +409,13 @@
                     
                     createDownloadLink('shifts.ics', icsData.shifts, 'Download Shifts Calendar');
                     createDownloadLink('daysoff.ics', icsData.daysOff, 'Download Days Off Calendar');
-                    generateBtn.disabled = false;
-                    testRunBtn.disabled = false;
+                    updateButtonStates();
                 }, 50);
 
             } catch (error) {
                 console.error('Error during process:', error);
                 showError(error.message);
-                generateBtn.disabled = false;
-                testRunBtn.disabled = false;
+                updateButtonStates();
             }
         }
         
