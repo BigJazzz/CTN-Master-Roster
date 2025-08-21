@@ -73,11 +73,11 @@
                     <label for="startLine" class="block text-sm font-medium text-gray-700 mb-1">Starting Line Number</label>
                     <input type="number" id="startLine" value="3" min="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 3">
                 </div>
-
+                <div><p>Click the Check Data button to ensure the data is being fetched correctly.</p></div>
 
                 <div class="flex flex-col sm:flex-row gap-4 pt-2">
                     <button type="button" id="testRunBtn" class="w-full bg-gray-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-200" disabled>
-                        Test Run (First Fortnight)
+                        Check Data (First Fortnight)
                     </button>
                     <button type="submit" id="generateBtn" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200" disabled>
                         Generate ICS Files
@@ -97,31 +97,32 @@
         </footer>
     </div>
 
-    <!-- Sanity Check Modal -->
-    <div id="dateSanityCheckModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+    <!-- Modals -->
+    <div id="dateSanityCheckModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full hidden z-50">
         <div class="relative top-20 mx-auto p-5 border w-full max-w-sm shadow-lg rounded-md bg-white">
             <div class="mt-3 text-center">
                 <h3 class="text-lg leading-6 font-medium text-gray-900">Incorrect Start Date</h3>
-                <div class="mt-2 px-7 py-3">
-                    <p class="text-sm text-gray-500">
-                        The selected start date is not the beginning of a fortnight. Please choose one of the correct dates below to continue.
-                    </p>
-                </div>
+                <div class="mt-2 px-7 py-3"><p class="text-sm text-gray-500">The selected start date is not the beginning of a fortnight. Please choose one of the correct dates below to continue.</p></div>
                 <div class="items-center px-4 py-3 space-y-2">
-                    <button id="modalPrevDateBtn" class="w-full px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300">
-                        <!-- Date will be injected here -->
-                    </button>
-                    <button id="modalNextDateBtn" class="w-full px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300">
-                        <!-- Date will be injected here -->
-                    </button>
-                    <button id="modalCancelBtn" class="w-full px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300">
-                        Cancel
-                    </button>
+                    <button id="modalPrevDateBtn" class="w-full px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700"></button>
+                    <button id="modalNextDateBtn" class="w-full px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700"></button>
+                    <button id="modalCancelBtn" class="w-full px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-300"></button>
                 </div>
             </div>
         </div>
     </div>
-
+    <div id="reDownloadModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full hidden z-50">
+        <div class="relative top-20 mx-auto p-5 border w-full max-w-sm shadow-lg rounded-md bg-white">
+            <div class="mt-3 text-center">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Re-download File?</h3>
+                <div class="mt-2 px-7 py-3"><p class="text-sm text-gray-500">You have already downloaded this file. Do you want to download it again?</p></div>
+                <div class="items-center px-4 py-3 space-x-4">
+                    <button id="reDownloadConfirmBtn" class="px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700">Yes</button>
+                    <button id="reDownloadCancelBtn" class="px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-300">No</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
         const AppState = {
@@ -136,10 +137,7 @@
 
             document.getElementById('sheetName').addEventListener('change', populateBlockDropdown);
             
-            const handleStartDateChange = () => {
-                adjustStartDate();
-                adjustEndDate();
-            };
+            const handleStartDateChange = () => { adjustStartDate(); adjustEndDate(); };
             startDateInput.addEventListener('change', handleStartDateChange);
             startDateInput.addEventListener('blur', handleStartDateChange);
 
@@ -189,13 +187,8 @@
             const minDate = new Date(startDateInput.min + 'T00:00:00Z');
             const maxDate = startDateInput.max ? new Date(startDateInput.max + 'T00:00:00Z') : null;
 
-            if (isNaN(start.getTime()) || start < minDate) {
-                start = minDate;
-            }
-            
-            if (maxDate && start > maxDate) {
-                start = maxDate;
-            }
+            if (isNaN(start.getTime()) || start < minDate) start = minDate;
+            if (maxDate && start > maxDate) start = maxDate;
             
             startDateInput.value = start.toISOString().split('T')[0];
         }
@@ -216,19 +209,15 @@
 
             const oneDay = 1000 * 60 * 60 * 24;
             const diffDays = Math.round((end - start) / oneDay) + 1;
-
             const numFortnights = Math.ceil(diffDays / 14);
             const totalDays = numFortnights * 14;
-
             let newEndDate = new Date(start);
             newEndDate.setUTCDate(start.getUTCDate() + totalDays - 1);
 
             const maxDateStr = endDateInput.max;
             if (maxDateStr) {
                 const maxDate = new Date(maxDateStr + 'T00:00:00Z');
-                if (newEndDate > maxDate) {
-                    newEndDate = maxDate;
-                }
+                if (newEndDate > maxDate) newEndDate = maxDate;
             }
 
             endDateInput.value = newEndDate.toISOString().split('T')[0];
@@ -295,11 +284,7 @@
 
             if (formIsValid) {
                 testRunBtn.disabled = false;
-                if (getCookie('testRunCompleted') === 'true') {
-                    generateBtn.disabled = false;
-                } else {
-                    generateBtn.disabled = true;
-                }
+                generateBtn.disabled = getCookie('testRunCompleted') !== 'true';
             } else {
                 testRunBtn.disabled = true;
                 generateBtn.disabled = true;
@@ -311,6 +296,9 @@
             const blockSelect = document.getElementById('rosterBlocks');
             const startDateInput = document.getElementById('startDate');
             const endDateInput = document.getElementById('endDate');
+
+            setCookie('testRunCompleted', '', -1); 
+            localStorage.removeItem('rosterAppCache');
 
             blockSelect.innerHTML = '';
             if (!selectedRoster) {
@@ -390,11 +378,9 @@
 
         function isValidFortnightStartDate(date) {
             const referenceDate = AppState.rosterDates[0];
-            if (!referenceDate) return false; // Cannot validate without a reference
-
+            if (!referenceDate) return false;
             const oneDay = 1000 * 60 * 60 * 24;
             const diffDays = Math.round((date - referenceDate) / oneDay);
-
             return diffDays % 14 === 0;
         }
 
@@ -404,20 +390,14 @@
             const start = new Date(startDateInput.value + 'T00:00:00Z');
 
             if (isValidFortnightStartDate(start)) {
-                if (isTestRun) {
-                    proceedWithTestRun();
-                } else {
-                    proceedWithFormSubmit();
-                }
+                if (isTestRun) proceedWithTestRun(); else proceedWithFormSubmit();
             } else {
                 const oneDay = 1000 * 60 * 60 * 24;
                 const referenceDate = AppState.rosterDates[0];
                 const diffDays = Math.round((start - referenceDate) / oneDay);
                 const remainder = diffDays % 14;
-
                 const prevDate = new Date(start);
                 prevDate.setUTCDate(start.getUTCDate() - remainder);
-
                 const nextDate = new Date(start);
                 nextDate.setUTCDate(start.getUTCDate() + (14 - remainder));
 
@@ -435,22 +415,16 @@
                     if (isTestRun) proceedWithTestRun(); else proceedWithFormSubmit();
                     modal.classList.add('hidden');
                 };
-
                 const onNextClick = () => {
                     startDateInput.value = nextDate.toISOString().split('T')[0];
                     adjustEndDate();
                     if (isTestRun) proceedWithTestRun(); else proceedWithFormSubmit();
                     modal.classList.add('hidden');
                 };
-
-                const onCancelClick = () => {
-                    modal.classList.add('hidden');
-                };
+                cancelBtn.onclick = () => modal.classList.add('hidden');
 
                 prevBtn.onclick = onPrevClick;
                 nextBtn.onclick = onNextClick;
-                cancelBtn.onclick = onCancelClick;
-
                 modal.classList.remove('hidden');
             }
         }
@@ -458,7 +432,6 @@
         async function proceedWithTestRun() {
             const generateBtn = document.getElementById('generateBtn');
             const testRunBtn = document.getElementById('testRunBtn');
-            
             generateBtn.disabled = true;
             testRunBtn.disabled = true;
 
@@ -468,13 +441,11 @@
                 
                 setTimeout(() => {
                     const rosterData = generateRosterData(sheetData, startDate, null, startLine, rosterBlocks, 14);
-                    
                     document.getElementById('loader').classList.add('hidden');
                     document.getElementById('status').textContent = 'Test run complete.';
                     document.getElementById('status').className = 'text-lg font-medium text-center text-green-600';
                     displayTestTable(rosterData);
                     setCookie('testRunCompleted', 'true', 7);
-                    
                     const cachePayload = { sheets: AppState.rosterDates.map(d => d.toLocaleDateString('en-GB')), blocks: AppState.blockDataCache };
                     localStorage.setItem('rosterAppCache', JSON.stringify(cachePayload));
                     updateButtonStates();
@@ -490,7 +461,6 @@
         async function proceedWithFormSubmit() {
             const generateBtn = document.getElementById('generateBtn');
             const testRunBtn = document.getElementById('testRunBtn');
-            
             generateBtn.disabled = true;
             testRunBtn.disabled = true;
 
@@ -500,13 +470,12 @@
 
                 setTimeout(() => {
                     const icsData = generateIcsContent(sheetData, startDate, endDate, startLine, rosterBlocks);
-
                     document.getElementById('loader').classList.add('hidden');
                     document.getElementById('status').textContent = 'Successfully generated calendar files!';
                     document.getElementById('status').className = 'text-lg font-medium text-center text-green-600';
                     
-                    createDownloadLink('shifts.ics', icsData.shifts, 'Download Shifts Calendar');
-                    createDownloadLink('daysoff.ics', icsData.daysOff, 'Download Days Off Calendar');
+                    icsData.shifts.forEach((chunk, i) => createDownloadLink(`shifts-part-${i+1}.ics`, chunk, `Download Shifts (Part ${i+1})`));
+                    icsData.daysOff.forEach((chunk, i) => createDownloadLink(`daysoff-part-${i+1}.ics`, chunk, `Download Days Off (Part ${i+1})`));
                     updateButtonStates();
                 }, 50);
 
@@ -530,9 +499,7 @@
 
             const sheetData = await fetchSheetData(AppState.gasUrl, sheetName);
             const rosterBlocks = parseRosterBlocks(rosterBlocksStr);
-            if (rosterBlocks.length === 0) {
-                throw new Error('Invalid roster block format. Use format like "3-20".');
-            }
+            if (rosterBlocks.length === 0) throw new Error('Invalid roster block format. Use format like "3-20".');
             
             return { sheetData, startDate, endDate, startLine, rosterBlocks };
         }
@@ -549,9 +516,7 @@
             const url = `${gasUrl}?action=getSheetData&sheetName=${encodeURIComponent(sheetName)}${cacheBust}`;
             const response = await fetch(url);
             const result = await response.json();
-            if (!result.success) {
-                throw new Error(result.error || 'Failed to fetch data via Apps Script.');
-            }
+            if (!result.success) throw new Error(result.error || 'Failed to fetch data via Apps Script.');
             return result.data || [];
         }
 
@@ -570,21 +535,16 @@
             let currentDate = new Date(startDateStr + 'T00:00:00Z');
             const finalDate = endDateStr ? new Date(endDateStr + 'T00:00:00Z') : null;
             let currentLine = startLine;
-
             const dataMap = new Map(sheetData.map(row => [parseInt(row[0], 10), row]).filter(([key]) => !isNaN(key)));
-
             let dayCounter = 0;
+
             while (true) {
-                if (numberOfDays && dayCounter >= numberOfDays) break;
-                if (finalDate && currentDate > finalDate) break;
-                if (!numberOfDays && !finalDate && dayCounter >= 365*5) break; 
+                if ((numberOfDays && dayCounter >= numberOfDays) || (finalDate && currentDate > finalDate) || (!numberOfDays && !finalDate && dayCounter >= 365*5)) break; 
 
                 if (dayCounter > 0 && dayCounter % 14 === 0) {
                     const currentBlock = rosterBlocks.find(b => currentLine >= b.start && currentLine <= b.end);
                     currentLine++;
-                    if (currentBlock && currentLine > currentBlock.end) {
-                        currentLine = currentBlock.start;
-                    }
+                    if (currentBlock && currentLine > currentBlock.end) currentLine = currentBlock.start;
                 }
 
                 const dayOfWeek = currentDate.getUTCDay();
@@ -592,35 +552,20 @@
                 const columnIndex = dayInFortnight < 7 ? dayOfWeek + 1 : dayOfWeek + 8;
                 const rowData = dataMap.get(currentLine);
                 const cellContent = (rowData && rowData[columnIndex]) ? String(rowData[columnIndex]).trim() : '';
-
-                let parsedDetails = 'No Data';
-                let eventType = null;
-                let eventDetails = null;
+                let eventType = null, eventDetails = null;
 
                 if (cellContent.toUpperCase() === 'OFF' || cellContent.toUpperCase() === 'ADO') {
-                    parsedDetails = `All-day: ${cellContent}`;
                     eventType = 'dayOff';
                     eventDetails = cellContent;
                 } else if (cellContent) {
                     const shiftDetails = parseShiftDetails(cellContent);
                     if (shiftDetails) {
-                        parsedDetails = `Shift: ${shiftDetails.summary} (${shiftDetails.start} - ${shiftDetails.end})`;
                         eventType = 'shift';
                         eventDetails = shiftDetails;
-                    } else {
-                        parsedDetails = `Unrecognized format: "${cellContent}"`;
                     }
                 }
 
-                rosterOutput.push({
-                    date: new Date(currentDate),
-                    rawContent: cellContent || '---',
-                    parsed: parsedDetails,
-                    eventType,
-                    eventDetails,
-                    lineNumber: currentLine
-                });
-
+                rosterOutput.push({ date: new Date(currentDate), eventType, eventDetails, lineNumber: currentLine });
                 currentDate.setUTCDate(currentDate.getUTCDate() + 1);
                 dayCounter++;
             }
@@ -629,21 +574,38 @@
 
         function generateIcsContent(sheetData, startDateStr, endDateStr, startLine, rosterBlocks) {
             const rosterData = generateRosterData(sheetData, startDateStr, endDateStr, startLine, rosterBlocks);
-            let shiftEvents = [];
-            let daysOffEvents = [];
+            let shiftEvents = [], daysOffEvents = [];
 
             rosterData.forEach(day => {
-                if (day.eventType === 'shift') {
-                    shiftEvents.push(createIcsEvent(day.date, day.eventDetails, false));
-                } else if (day.eventType === 'dayOff') {
-                    daysOffEvents.push(createIcsEvent(day.date, day.eventDetails, true));
-                }
+                if (day.eventType === 'shift') shiftEvents.push(createIcsEvent(day.date, day.eventDetails, false));
+                else if (day.eventType === 'dayOff') daysOffEvents.push(createIcsEvent(day.date, day.eventDetails, true));
             });
 
+            const MAX_SIZE = 1 * 1024 * 1024; // 1MB
             return {
-                shifts: createIcsFile(shiftEvents),
-                daysOff: createIcsFile(daysOffEvents)
+                shifts: chunkEvents(shiftEvents, MAX_SIZE),
+                daysOff: chunkEvents(daysOffEvents, MAX_SIZE)
             };
+        }
+
+        function chunkEvents(events, maxSize) {
+            if (events.length === 0) return [];
+            const chunks = [];
+            let currentChunk = [];
+            let currentSize = 0;
+            const eventSize = 250; // Approximate size of one event in bytes
+
+            for (const event of events) {
+                if (currentSize + eventSize > maxSize && currentChunk.length > 0) {
+                    chunks.push(createIcsFile(currentChunk));
+                    currentChunk = [];
+                    currentSize = 0;
+                }
+                currentChunk.push(event);
+                currentSize += eventSize;
+            }
+            if (currentChunk.length > 0) chunks.push(createIcsFile(currentChunk));
+            return chunks;
         }
 
         function displayTestTable(data) {
@@ -656,25 +618,16 @@
                 if (weekData.length === 0) continue;
 
                 tableHTML += `<div class="overflow-x-auto rounded-lg border border-gray-200 ${week > 0 ? 'mt-4' : ''}">
-                    <table class="min-w-full table-fixed">
-                        <thead class="bg-gray-50">
-                            <tr>`;
-                days.forEach(day => {
-                    tableHTML += `<th class="px-2 py-2 text-xs font-medium text-gray-600 uppercase tracking-wider text-center">${day}</th>`;
-                });
-                tableHTML += `</tr>
-                        </thead>
-                        <tbody class="bg-white divide-x divide-gray-200">
-                            <tr>`;
+                    <table class="min-w-full table-fixed"><thead class="bg-gray-50"><tr>`;
+                days.forEach(day => { tableHTML += `<th class="px-2 py-2 text-xs font-medium text-gray-600 uppercase tracking-wider text-center">${day}</th>`; });
+                tableHTML += `</tr></thead><tbody class="bg-white divide-x divide-gray-200"><tr>`;
                 weekData.forEach(day => {
                     const date = day.date.getUTCDate();
-                    let content = '';
-                    let bgColor = 'bg-white';
+                    let content = '', bgColor = 'bg-white';
 
                     if (day.eventType === 'shift') {
                         const details = day.eventDetails;
-                        content = `<div class="font-semibold text-gray-800">${details.start} - ${details.end}</div>
-                                   <div class="mt-1 text-gray-600">${details.summary}</div>`;
+                        content = `<div class="font-semibold text-gray-800">${details.start} - ${details.end}</div><div class="mt-1 text-gray-600">${details.summary}</div>`;
                         bgColor = 'bg-green-50';
                     } else if (day.eventType === 'dayOff') {
                         content = `<span class="font-bold text-blue-600">${day.eventDetails}</span>`;
@@ -692,12 +645,8 @@
                                     <div class="text-xs mt-1 break-words">${content}</div>
                                   </td>`;
                 });
-                tableHTML += `</tr>
-                        </tbody>
-                    </table>
-                </div>`;
+                tableHTML += `</tr></tbody></table></div>`;
             }
-
             container.innerHTML = tableHTML;
             container.classList.remove('hidden');
         }
@@ -706,7 +655,6 @@
             const regex = /^(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})\s+([\d]+(?:\(i\))?)/;
             const match = content.match(regex);
             if (!match) return null;
-            
             const [, startTime, endTime, summary] = match;
             return { start: startTime, end: endTime, summary: summary.trim() };
         }
@@ -727,11 +675,8 @@
             } else {
                 const startDate = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), ...details.start.split(':')));
                 const endDate = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), ...details.end.split(':')));
-                
                 if (endDate < startDate) endDate.setUTCDate(endDate.getUTCDate() + 1);
-
                 const formatIcsDate = (d) => d.toISOString().replace(/[-:.]/g, '').slice(0, 15);
-                
                 eventString += `DTSTART:${formatIcsDate(startDate)}\n`;
                 eventString += `DTEND:${formatIcsDate(endDate)}\n`;
                 eventString += `SUMMARY:${details.summary}\n`;
@@ -752,7 +697,27 @@
             a.href = url;
             a.download = filename;
             a.textContent = linkText;
-            a.className = 'block w-full bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors duration-200 text-center';
+            a.className = 'block w-full bg-blue-200 text-blue-800 font-semibold py-2 px-4 rounded-lg hover:bg-blue-300 transition-colors duration-200 text-center';
+            
+            a.addEventListener('click', (e) => {
+                if (a.dataset.clicked === 'true') {
+                    e.preventDefault();
+                    const modal = document.getElementById('reDownloadModal');
+                    modal.classList.remove('hidden');
+                    document.getElementById('reDownloadConfirmBtn').onclick = () => {
+                        window.location.href = url;
+                        modal.classList.add('hidden');
+                    };
+                    document.getElementById('reDownloadCancelBtn').onclick = () => {
+                        modal.classList.add('hidden');
+                    };
+                } else {
+                    a.dataset.clicked = 'true';
+                    a.classList.remove('bg-blue-200', 'text-blue-800', 'hover:bg-blue-300');
+                    a.classList.add('bg-gray-200', 'text-gray-500', 'hover:bg-gray-300');
+                }
+            });
+
             downloadLinksDiv.appendChild(a);
         }
     </script>
