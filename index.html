@@ -29,6 +29,23 @@
             opacity: 0.7;
             cursor: not-allowed;
         }
+        .day-checkbox {
+            display: none;
+            position: absolute;
+            top: 0.25rem;
+            right: 0.25rem;
+            height: 1.25rem;
+            width: 1.25rem;
+        }
+        .partial-select-active .day-checkbox {
+            display: block;
+        }
+        .partial-selection-controls {
+            display: none;
+        }
+        .partial-select-active .partial-selection-controls {
+            display: flex;
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
@@ -77,6 +94,10 @@
                         Generate ICS Files
                     </button>
                 </div>
+                 <div class="mt-4 text-center">
+                    <input type="checkbox" id="partial" name="partial" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                    <label for="partial" class="ml-2 text-sm text-gray-700">Select specific shifts from the Check Data calendar</label>
+                </div>
             </form>
 
             <div id="results" class="mt-8 text-left hidden">
@@ -91,10 +112,8 @@
         </footer>
     </div>
 
-    <!-- Floating Help Button -->
     <button id="helpBtn" class="fixed bottom-4 right-4 bg-blue-600 text-white w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-2xl font-bold z-40 hover:bg-blue-700 transition-colors">?</button>
 
-    <!-- Modals -->
     <div id="helpModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full hidden z-50 flex items-center justify-center">
         <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl">
             <div class="flex justify-between items-center pb-3">
@@ -159,18 +178,55 @@
         document.addEventListener('DOMContentLoaded', () => {
             const startDateInput = document.getElementById('startDate');
             const endDateInput = document.getElementById('endDate');
+            const partialCheckbox = document.getElementById('partial');
 
             document.getElementById('sheetName').addEventListener('change', handleRosterSelection);
             
             const handleStartDateChange = () => { adjustStartDate(); adjustEndDate(); };
-            startDateInput.addEventListener('change', handleStartDateChange);
+            startDateInput.addEventListener('input', handleStartDateChange);
             startDateInput.addEventListener('blur', handleStartDateChange);
 
-            endDateInput.addEventListener('change', adjustEndDate);
-            endDateInput.addEventListener('blur', adjustEndDate);
+            const handleEndDateChange = () => { adjustEndDate(); };
+            endDateInput.addEventListener('input', handleEndDateChange);
+            endDateInput.addEventListener('blur', handleEndDateChange);
+
 
             document.getElementById('rosterForm').addEventListener('submit', (e) => runProcess(e, false));
             document.getElementById('testRunBtn').addEventListener('click', (e) => runProcess(e, true));
+            
+            partialCheckbox.addEventListener('change', () => {
+                const testRunOutput = document.getElementById('test-run-output');
+                const endDateInput = document.getElementById('endDate');
+                const startDateInput = document.getElementById('startDate');
+
+                if (partialCheckbox.checked) {
+                    const onDateValidated = () => {
+                        testRunOutput.classList.add('partial-select-active');
+                        endDateInput.dataset.originalValue = endDateInput.value;
+                        const start = new Date(startDateInput.value + 'T00:00:00Z');
+                        if (!isNaN(start.getTime())) {
+                            const newEndDate = new Date(start);
+                            newEndDate.setUTCDate(start.getUTCDate() + 13);
+                            endDateInput.value = newEndDate.toISOString().split('T')[0];
+                            endDateInput.disabled = true;
+                        }
+                    };
+
+                    const onValidationCancel = () => {
+                        partialCheckbox.checked = false;
+                    };
+                    
+                    checkAndCorrectDate(onDateValidated, onValidationCancel);
+
+                } else {
+                    testRunOutput.classList.remove('partial-select-active');
+                    endDateInput.disabled = false;
+                    if (endDateInput.dataset.originalValue) {
+                        endDateInput.value = endDateInput.dataset.originalValue;
+                    }
+                    adjustEndDate();
+                }
+            });
 
             document.getElementById('helpBtn').addEventListener('click', openHelpModal);
             document.getElementById('helpModalCloseBtn').addEventListener('click', closeHelpModal);
@@ -224,6 +280,17 @@
         function adjustEndDate() {
             const startDateInput = document.getElementById('startDate');
             const endDateInput = document.getElementById('endDate');
+            const partialCheckbox = document.getElementById('partial');
+
+            if (partialCheckbox.checked) {
+                const start = new Date(startDateInput.value + 'T00:00:00Z');
+                 if (!isNaN(start.getTime())) {
+                    const newEndDate = new Date(start);
+                    newEndDate.setUTCDate(start.getUTCDate() + 13);
+                    endDateInput.value = newEndDate.toISOString().split('T')[0];
+                }
+                return;
+            }
 
             let start = new Date(startDateInput.value + 'T00:00:00Z');
             let end = new Date(endDateInput.value + 'T00:00:00Z');
@@ -318,9 +385,16 @@
             const startDateInput = document.getElementById('startDate');
             const endDateInput = document.getElementById('endDate');
             const startLineInput = document.getElementById('startLine');
+            const partialCheckbox = document.getElementById('partial');
 
             setCookie('testRunCompleted', '', -1); 
             localStorage.removeItem('rosterAppCache');
+
+            // Also reset partial selection state
+            partialCheckbox.checked = false;
+            endDateInput.disabled = false;
+            document.getElementById('test-run-output').classList.remove('partial-select-active');
+
 
             if (!selectedRoster) {
                 startDateInput.disabled = true;
@@ -372,6 +446,7 @@
             document.getElementById('download-links').innerHTML = '';
             document.getElementById('test-run-output').innerHTML = '';
             document.getElementById('test-run-output').classList.add('hidden');
+            document.getElementById('test-run-output').classList.remove('partial-select-active');
         }
 
         function prepareForRun(statusMessage) {
@@ -394,6 +469,65 @@
             return diffDays % 14 === 0;
         }
 
+        function checkAndCorrectDate(onSuccessCallback, onCancelCallback = () => {}) {
+            const startDateInput = document.getElementById('startDate');
+            const start = new Date(startDateInput.value + 'T00:00:00Z');
+
+            if (isValidFortnightStartDate(start)) {
+                if (onSuccessCallback) onSuccessCallback();
+                return;
+            }
+            
+            const oneDay = 1000 * 60 * 60 * 24;
+            const referenceDate = AppState.rosterDates[0];
+            if (!referenceDate) {
+                showError("Roster reference date not found. Cannot validate start date.");
+                if(onCancelCallback) onCancelCallback();
+                return;
+            }
+            const diffDays = Math.round((start - referenceDate) / oneDay);
+            const remainder = diffDays % 14;
+            const prevDate = new Date(start);
+            prevDate.setUTCDate(start.getUTCDate() - remainder);
+            const nextDate = new Date(start);
+            nextDate.setUTCDate(start.getUTCDate() + (14 - remainder));
+
+            const modal = document.getElementById('dateSanityCheckModal');
+            const prevBtn = document.getElementById('modalPrevDateBtn');
+            const nextBtn = document.getElementById('modalNextDateBtn');
+            const cancelBtn = document.getElementById('modalCancelBtn');
+
+            prevBtn.textContent = `Use Previous: ${prevDate.toLocaleDateString()}`;
+            nextBtn.textContent = `Use Next: ${nextDate.toLocaleDateString()}`;
+
+            const newPrevBtn = prevBtn.cloneNode(true);
+            const newNextBtn = nextBtn.cloneNode(true);
+            const newCancelBtn = cancelBtn.cloneNode(true);
+
+            prevBtn.parentNode.replaceChild(newPrevBtn, prevBtn);
+            nextBtn.parentNode.replaceChild(newNextBtn, nextBtn);
+            cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+
+            newPrevBtn.onclick = () => {
+                startDateInput.value = prevDate.toISOString().split('T')[0];
+                adjustEndDate();
+                if (onSuccessCallback) onSuccessCallback();
+                modal.classList.add('hidden');
+            };
+            newNextBtn.onclick = () => {
+                startDateInput.value = nextDate.toISOString().split('T')[0];
+                adjustEndDate();
+                if (onSuccessCallback) onSuccessCallback();
+                modal.classList.add('hidden');
+            };
+            newCancelBtn.onclick = () => {
+                if (onCancelCallback) onCancelCallback();
+                modal.classList.add('hidden');
+            };
+            
+            modal.classList.remove('hidden');
+        }
+
         function runProcess(event, isTestRun) {
             event.preventDefault();
 
@@ -405,47 +539,8 @@
                 return;
             }
 
-            const startDateInput = document.getElementById('startDate');
-            const start = new Date(startDateInput.value + 'T00:00:00Z');
-
-            if (isValidFortnightStartDate(start)) {
-                if (isTestRun) proceedWithTestRun(); else proceedWithFormSubmit();
-            } else {
-                const oneDay = 1000 * 60 * 60 * 24;
-                const referenceDate = AppState.rosterDates[0];
-                const diffDays = Math.round((start - referenceDate) / oneDay);
-                const remainder = diffDays % 14;
-                const prevDate = new Date(start);
-                prevDate.setUTCDate(start.getUTCDate() - remainder);
-                const nextDate = new Date(start);
-                nextDate.setUTCDate(start.getUTCDate() + (14 - remainder));
-
-                const modal = document.getElementById('dateSanityCheckModal');
-                const prevBtn = document.getElementById('modalPrevDateBtn');
-                const nextBtn = document.getElementById('modalNextDateBtn');
-                const cancelBtn = document.getElementById('modalCancelBtn');
-
-                prevBtn.textContent = `Use Previous: ${prevDate.toLocaleDateString()}`;
-                nextBtn.textContent = `Use Next: ${nextDate.toLocaleDateString()}`;
-
-                const onPrevClick = () => {
-                    startDateInput.value = prevDate.toISOString().split('T')[0];
-                    adjustEndDate();
-                    if (isTestRun) proceedWithTestRun(); else proceedWithFormSubmit();
-                    modal.classList.add('hidden');
-                };
-                const onNextClick = () => {
-                    startDateInput.value = nextDate.toISOString().split('T')[0];
-                    adjustEndDate();
-                    if (isTestRun) proceedWithTestRun(); else proceedWithFormSubmit();
-                    modal.classList.add('hidden');
-                };
-                cancelBtn.onclick = () => modal.classList.add('hidden');
-
-                prevBtn.onclick = onPrevClick;
-                nextBtn.onclick = onNextClick;
-                modal.classList.remove('hidden');
-            }
+            const callback = isTestRun ? proceedWithTestRun : proceedWithFormSubmit;
+            checkAndCorrectDate(callback);
         }
 
         async function proceedWithTestRun() {
@@ -464,6 +559,11 @@
                     document.getElementById('status').textContent = 'Test run complete.';
                     document.getElementById('status').className = 'text-lg font-medium text-center text-green-600';
                     displayTestTable(rosterData);
+
+                    if (document.getElementById('partial').checked) {
+                        document.getElementById('test-run-output').classList.add('partial-select-active');
+                    }
+
                     setCookie('testRunCompleted', 'true', 7);
                     const cachePayload = { sheets: AppState.rosterDates.map(d => d.toLocaleDateString('en-GB')), blocks: AppState.blockDataCache };
                     localStorage.setItem('rosterAppCache', JSON.stringify(cachePayload));
@@ -487,14 +587,45 @@
                 const { sheetData, startDate, endDate, startLine, rosterBlocks } = await getAndValidateInputs();
                 prepareForRun(`Generating calendar from line ${startLine}...`);
 
+                const isPartial = document.getElementById('partial').checked;
+                let selectedDays = null;
+                if (isPartial) {
+                    selectedDays = Array.from(document.querySelectorAll('#test-run-output .day-checkbox:checked')).map(cb => cb.value);
+                    if (selectedDays.length === 0) {
+                        throw new Error("Please select at least one day from the grid when 'Select specific shifts' is checked.");
+                    }
+                }
+
                 setTimeout(() => {
-                    const icsData = generateIcsContent(sheetData, startDate, endDate, startLine, rosterBlocks);
+                    const icsData = generateIcsContent(sheetData, startDate, endDate, startLine, rosterBlocks, selectedDays);
                     document.getElementById('loader').classList.add('hidden');
-                    document.getElementById('status').textContent = 'Successfully generated calendar files!';
-                    document.getElementById('status').className = 'text-lg font-medium text-center text-green-600';
                     
-                    icsData.shifts.forEach((chunk, i) => createDownloadLink(`shifts-part-${i+1}.ics`, chunk, `Download Shifts (Part ${i+1})`));
-                    icsData.daysOff.forEach((chunk, i) => createDownloadLink(`daysoff-part-${i+1}.ics`, chunk, `Download Days Off (Part ${i+1})`));
+                    const shiftFileCount = icsData.shifts.length;
+                    const dayOffFileCount = icsData.daysOff.length;
+
+                    if (shiftFileCount === 0 && dayOffFileCount === 0) {
+                        document.getElementById('status').textContent = 'No events were selected. Nothing to generate.';
+                        document.getElementById('status').className = 'text-lg font-medium text-center text-yellow-600';
+                    } else {
+                        document.getElementById('status').textContent = 'Successfully generated calendar files!';
+                        document.getElementById('status').className = 'text-lg font-medium text-center text-green-600';
+                        
+                        if (shiftFileCount > 0) {
+                            icsData.shifts.forEach((chunk, i) => {
+                                const linkText = shiftFileCount > 1 ? `Download Shifts (Part ${i + 1})` : 'Download Shifts';
+                                const filename = shiftFileCount > 1 ? `shifts-part-${i + 1}.ics` : 'shifts.ics';
+                                createDownloadLink(filename, chunk, linkText);
+                            });
+                        }
+    
+                        if (dayOffFileCount > 0) {
+                            icsData.daysOff.forEach((chunk, i) => {
+                                const linkText = dayOffFileCount > 1 ? `Download Days Off (Part ${i + 1})` : 'Download Days Off';
+                                const filename = dayOffFileCount > 1 ? `daysoff-part-${i + 1}.ics` : 'daysoff.ics';
+                                createDownloadLink(filename, chunk, linkText);
+                            });
+                        }
+                    }
                     updateButtonStates();
                 }, 50);
 
@@ -600,8 +731,14 @@
             return rosterOutput;
         }
 
-        function generateIcsContent(sheetData, startDateStr, endDateStr, startLine, rosterBlocks) {
-            const rosterData = generateRosterData(sheetData, startDateStr, endDateStr, startLine, rosterBlocks);
+        function generateIcsContent(sheetData, startDateStr, endDateStr, startLine, rosterBlocks, selectedDays = null) {
+            let rosterData = generateRosterData(sheetData, startDateStr, endDateStr, startLine, rosterBlocks);
+            
+            if (selectedDays && selectedDays.length > 0) {
+                const selectionSet = new Set(selectedDays);
+                rosterData = rosterData.filter(day => selectionSet.has(day.date.toISOString().split('T')[0]));
+            }
+
             let shiftEvents = [], daysOffEvents = [];
 
             rosterData.forEach(day => {
@@ -611,8 +748,8 @@
 
             const MAX_SIZE = 1 * 1024 * 1024; // 1MB
             return {
-                shifts: chunkEvents(shiftEvents, MAX_SIZE),
-                daysOff: chunkEvents(daysOffEvents, MAX_SIZE)
+                shifts: shiftEvents.length > 0 ? chunkEvents(shiftEvents, MAX_SIZE) : [],
+                daysOff: daysOffEvents.length > 0 ? chunkEvents(daysOffEvents, MAX_SIZE) : []
             };
         }
 
@@ -641,6 +778,11 @@
             const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
             let tableHTML = `<h3 class="text-xl font-semibold mb-4 text-left">Test Run Results (First Fortnight)</h3>`;
 
+            tableHTML += `<div class="partial-selection-controls mb-4 flex gap-4">
+                <button type="button" id="selectAllBtn" class="px-4 py-2 text-sm bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200">Select All</button>
+                <button type="button" id="selectNoneBtn" class="px-4 py-2 text-sm bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200">Select None</button>
+            </div>`;
+
             for (let week = 0; week < 2; week++) {
                 const weekData = data.slice(week * 7, (week + 1) * 7);
                 if (weekData.length === 0) continue;
@@ -651,6 +793,7 @@
                 tableHTML += `</tr></thead><tbody class="bg-white divide-x divide-gray-200"><tr>`;
                 weekData.forEach(day => {
                     const date = day.date.getUTCDate();
+                    const dateString = day.date.toISOString().split('T')[0];
                     let content = '', bgColor = 'bg-white';
 
                     if (day.eventType === 'shift') {
@@ -665,7 +808,8 @@
                         bgColor = 'bg-gray-50';
                     }
 
-                    tableHTML += `<td class="h-32 align-top p-2 ${bgColor}">
+                    tableHTML += `<td class="h-32 align-top p-2 relative ${bgColor}">
+                                    <input type="checkbox" class="day-checkbox" value="${dateString}">
                                     <div class="flex justify-between items-baseline">
                                         <div class="font-bold text-gray-900">${date}</div>
                                         <div class="text-xs text-gray-400 font-mono">L${day.lineNumber}</div>
@@ -676,15 +820,33 @@
                 tableHTML += `</tr></tbody></table></div>`;
             }
             container.innerHTML = tableHTML;
+
+            const selectAllBtn = document.getElementById('selectAllBtn');
+            const selectNoneBtn = document.getElementById('selectNoneBtn');
+
+            if (selectAllBtn && selectNoneBtn) {
+                selectAllBtn.addEventListener('click', () => {
+                    document.querySelectorAll('.day-checkbox').forEach(cb => cb.checked = true);
+                });
+                selectNoneBtn.addEventListener('click', () => {
+                    document.querySelectorAll('.day-checkbox').forEach(cb => cb.checked = false);
+                });
+            }
+
             container.classList.remove('hidden');
         }
 
         function parseShiftDetails(content) {
-            const regex = /^(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})\s+([\d]+(?:\(i\))?)/;
+            const regex = /^(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})(?:\s+(.+))?/;
             const match = content.match(regex);
+            
             if (!match) return null;
-            const [, startTime, endTime, summary] = match;
-            return { start: startTime, end: endTime, summary: summary.trim() };
+            
+            const startTime = match[1];
+            const endTime = match[2];
+            const summary = match[3] ? match[3].trim() : 'Shift';
+
+            return { start: startTime, end: endTime, summary: summary };
         }
 
         function createIcsEvent(date, details, isAllDay) {
@@ -714,7 +876,7 @@
         }
 
         function createIcsFile(events) {
-            return `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Gemini//RosterApp//EN\n${events.join('')}END:VCALENDAR`;
+            return `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Gemini//RosterApp//EN\n${events.join('')}END:VCALendar`;
         }
 
         function createDownloadLink(filename, content, linkText) {
@@ -762,3 +924,4 @@
     </script>
 </body>
 </html>
+
