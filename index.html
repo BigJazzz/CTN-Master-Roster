@@ -596,7 +596,7 @@
                     }
                 }
 
-                setTimeout(() => {
+                setTimeout(async () => {
                     const icsData = generateIcsContent(sheetData, startDate, endDate, startLine, rosterBlocks, selectedDays);
                     document.getElementById('loader').classList.add('hidden');
                     
@@ -610,23 +610,25 @@
                         document.getElementById('status').textContent = 'Successfully generated calendar files!';
                         document.getElementById('status').className = 'text-lg font-medium text-center text-green-600';
                         
-                        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+                        const isIOS = (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
                         const actionWord = isIOS ? 'Import' : 'Download';
 
                         if (shiftFileCount > 0) {
-                            icsData.shifts.forEach((chunk, i) => {
+                             for (let i = 0; i < icsData.shifts.length; i++) {
+                                const chunk = icsData.shifts[i];
                                 const linkText = shiftFileCount > 1 ? `${actionWord} Shifts (Part ${i + 1})` : `${actionWord} Shifts`;
                                 const filename = shiftFileCount > 1 ? `shifts-part-${i + 1}.ics` : 'shifts.ics';
-                                createDownloadLink(filename, chunk, linkText);
-                            });
+                                await createDownloadLink(filename, chunk, linkText);
+                            }
                         }
     
                         if (dayOffFileCount > 0) {
-                            icsData.daysOff.forEach((chunk, i) => {
+                            for (let i = 0; i < icsData.daysOff.length; i++) {
+                                const chunk = icsData.daysOff[i];
                                 const linkText = dayOffFileCount > 1 ? `${actionWord} Days Off (Part ${i + 1})` : `${actionWord} Days Off`;
                                 const filename = dayOffFileCount > 1 ? `daysoff-part-${i + 1}.ics` : 'daysoff.ics';
-                                createDownloadLink(filename, chunk, linkText);
-                            });
+                                await createDownloadLink(filename, chunk, linkText);
+                            }
                         }
                     }
                     updateButtonStates();
@@ -882,29 +884,40 @@
             return `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Gemini//RosterApp//EN\n${events.join('')}END:VCALendar`;
         }
 
-        function createDownloadLink(filename, content, linkText) {
+        function blobToDataURL(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = e => resolve(e.target.result);
+                reader.onerror = e => reject(reader.error);
+                reader.onabort = e => reject(new DOMException("Aborted", "AbortError"));
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        async function createDownloadLink(filename, content, linkText) {
             const downloadLinksDiv = document.getElementById('download-links');
             const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
-            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+            const isIOS = (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            
             const a = document.createElement('a');
             a.textContent = linkText;
             a.className = 'block w-full bg-blue-200 text-blue-800 font-semibold py-2 px-4 rounded-lg hover:bg-blue-300 transition-colors duration-200 text-center';
 
             if (isIOS) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    a.href = e.target.result;
-                };
-                reader.readAsDataURL(blob);
+                try {
+                    a.href = await blobToDataURL(blob);
+                } catch (error) {
+                    console.error("Failed to create data URL for iOS", error);
+                    showError("Could not generate import link.");
+                    return;
+                }
             } else {
                 const url = URL.createObjectURL(blob);
                 a.href = url;
                 a.download = filename;
-                a.onclick = function() {
-                    setTimeout(() => {
-                        URL.revokeObjectURL(url);
-                    }, 100);
-                };
+                a.addEventListener('click', () => {
+                    setTimeout(() => URL.revokeObjectURL(url), 100);
+                });
             }
             
             a.addEventListener('click', (e) => {
@@ -918,7 +931,7 @@
                     confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
                     
                     newConfirmBtn.onclick = () => {
-                         if (!isIOS) {
+                        if (!isIOS) {
                             const tempLink = document.createElement('a');
                             tempLink.href = a.href;
                             tempLink.download = a.download;
