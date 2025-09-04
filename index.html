@@ -83,28 +83,40 @@
     
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const gasUrl = 'https://script.google.com/macros/s/AKfycbxYIvUCKHqVT5ygPoXSi1F1bkvOOg41eaX-2UQq8Pfr9JHrxd7bALo1Vaey9FNrk3Ds/exec';
+            const AppState = {
+                gasUrl: 'https://script.google.com/macros/s/AKfycbxYIvUCKHqVT5ygPoXSi1F1bkvOOg41eaX-2UQq8Pfr9JHrxd7bALo1Vaey9FNrk3Ds/exec',
+                rosterDates: [],
+                blockDataCache: {}
+            };
+
             const sheetSelect = document.getElementById('sheetName');
             const startLineInput = document.getElementById('startLine');
             const startDateInput = document.getElementById('startDate');
             const endDateInput = document.getElementById('endDate');
             const generateBtn = document.getElementById('generateBtn');
-            let rosterDates = [];
-
+            
             async function initialize() {
                 sheetSelect.innerHTML = '<option>Loading rosters...</option>';
                 try {
-                    const response = await fetch(`${gasUrl}?action=getSheets`);
-                    const result = await response.json();
-                    if (!result.success) throw new Error(result.error);
+                    const [sheetsResponse, blocksResponse] = await Promise.all([
+                        fetch(`${AppState.gasUrl}?action=getSheets`),
+                        fetch(`${AppState.gasUrl}?action=getBlocks`)
+                    ]);
 
-                    rosterDates = result.data
+                    const sheetsResult = await sheetsResponse.json();
+                    if (!sheetsResult.success) throw new Error(sheetsResult.error);
+
+                    const blocksResult = await blocksResponse.json();
+                    if (!blocksResult.success) throw new Error(blocksResult.error);
+                    
+                    AppState.blockDataCache = blocksResult.data;
+                    AppState.rosterDates = sheetsResult.data
                         .map(name => parseDMY(name))
                         .filter(date => date !== null)
                         .sort((a, b) => a - b);
 
                     sheetSelect.innerHTML = '<option value="">-- Select a roster --</option>';
-                    result.data.forEach(name => {
+                    sheetsResult.data.forEach(name => {
                         const option = document.createElement('option');
                         option.value = name;
                         option.textContent = name;
@@ -120,7 +132,6 @@
             function parseDMY(dateString) {
                 const parts = dateString.match(/(\d+)/g);
                 if (!parts || parts.length < 3) return null;
-                // Use new Date(YYYY, MM-1, DD) for local time, not UTC
                 return new Date(parts[2], parts[1] - 1, parts[0]);
             }
 
@@ -138,10 +149,10 @@
                     startDateInput.min = formattedDate;
                     endDateInput.min = formattedDate;
 
-                    const currentIndex = rosterDates.findIndex(d => d.getTime() === rosterStartDate.getTime());
+                    const currentIndex = AppState.rosterDates.findIndex(d => d.getTime() === rosterStartDate.getTime());
 
-                    if (currentIndex > -1 && currentIndex < rosterDates.length - 1) {
-                        const nextRosterStartDate = rosterDates[currentIndex + 1];
+                    if (currentIndex > -1 && currentIndex < AppState.rosterDates.length - 1) {
+                        const nextRosterStartDate = AppState.rosterDates[currentIndex + 1];
                         const maxEndDate = new Date(nextRosterStartDate);
                         maxEndDate.setDate(maxEndDate.getDate() - 1);
                         endDateInput.max = toInputDateString(maxEndDate);
@@ -205,7 +216,6 @@
                 const startDate = new Date(startDateInput.value + 'T00:00:00');
                 const endDate = new Date(endDateInput.value + 'T00:00:00');
 
-
                 if (!sheetName || isNaN(startLine)) {
                     alert('Please select a roster and enter a valid starting line number.');
                     return;
@@ -214,9 +224,20 @@
                 prepareForRun(`Generating calendar from line ${startLine}...`);
 
                 try {
-                    const sheetData = await fetchSheetData(gasUrl, sheetName);
+                    const allBlockStrings = AppState.blockDataCache[sheetName] || [];
+                    const targetBlockString = allBlockStrings.find(bStr => {
+                        const [start, end] = bStr.split('-').map(Number);
+                        return startLine >= start && startLine <= end;
+                    });
+
+                    if (!targetBlockString) {
+                        throw new Error(`The starting line number ${startLine} does not fall within any defined blocks for this roster.`);
+                    }
+                    const rosterBlock = parseRosterBlocks(targetBlockString)[0];
+
+                    const sheetData = await fetchSheetData(AppState.gasUrl, sheetName);
                     
-                    const { shiftEvents, dayOffEvents } = parseRosterData(sheetData, startDate, endDate, startLine);
+                    const { shiftEvents, dayOffEvents } = parseRosterData(sheetData, startDate, endDate, startLine, rosterBlock);
 
                     document.getElementById('loader').classList.add('hidden');
 
@@ -241,7 +262,7 @@
                 }
             }
 
-            function parseRosterData(sheetData, rosterStartDate, rosterEndDate, startLine) {
+            function parseRosterData(sheetData, rosterStartDate, rosterEndDate, startLine, rosterBlock) {
                  const shiftEvents = [];
                  const dayOffEvents = [];
                  const dataMap = new Map(sheetData.map(row => [parseInt(row[0], 10), row]).filter(([key]) => !isNaN(key)));
@@ -252,7 +273,10 @@
                  for (let d = new Date(rosterStartDate); d <= rosterEndDate; d.setDate(d.getDate() + 1)) {
                      
                      if (dayCounter > 0 && dayCounter % 14 === 0) {
-                         currentLine++; // Simplified logic
+                         currentLine++;
+                         if (rosterBlock && currentLine > rosterBlock.end) {
+                            currentLine = rosterBlock.start;
+                         }
                      }
 
                      const rowData = dataMap.get(currentLine);
@@ -319,6 +343,16 @@
                      dayCounter++;
                  }
                  return { shiftEvents, dayOffEvents };
+            }
+
+            function parseRosterBlocks(blocksStr) {
+                return blocksStr.split(',').map(part => {
+                    const range = part.trim().split('-');
+                    if (range.length !== 2) return null;
+                    const start = parseInt(range[0], 10);
+                    const end = parseInt(range[1], 10);
+                    return (!isNaN(start) && !isNaN(end) && start <= end) ? { start, end } : null;
+                }).filter(Boolean);
             }
 
             // --- Helper Functions (Adapted from test.html) ---
@@ -431,3 +465,4 @@
     </script>
 </body>
 </html>
+
