@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iOS Download Test (Robust)</title>
+    <title>iOS Download Test (Multi-Event)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
@@ -13,9 +13,9 @@
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
 
     <div class="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
-        <h1 class="text-2xl font-bold text-gray-800 mb-4">iOS Download Test Page (Robust)</h1>
+        <h1 class="text-2xl font-bold text-gray-800 mb-4">iOS Download Test (Multi-Event)</h1>
         <p class="text-gray-600 mb-6">
-            This version uses dynamically generated timestamps and explicit UTC for maximum compatibility. Click the link to test the calendar import.
+            This version generates a single file with two separate calendar events. Click the link to test the import.
         </p>
 
         <div id="link-container"></div>
@@ -38,23 +38,39 @@
 
             // 1. Define event dates.
             const now = new Date();
-            const eventStart = new Date('2025-09-05T10:00:00Z'); // Explicitly UTC
-            const eventEnd = new Date('2025-09-05T11:00:00Z');   // Explicitly UTC
+            const event1Start = new Date('2025-09-05T10:00:00Z');
+            const event1End = new Date('2025-09-05T11:00:00Z');
+            const event2Start = new Date('2025-09-06T14:00:00Z');
+            const event2End = new Date('2025-09-06T15:30:00Z');
 
-            // 2. Hardcoded iCalendar (.ics) data using the robust date formats.
+            // 2. iCalendar (.ics) data with two separate VEVENT blocks.
             const icsContent = [
                 'BEGIN:VCALENDAR',
                 'VERSION:2.0',
                 'PRODID:-//Test//MyTestApp//EN',
+                
+                // --- First Event ---
                 'BEGIN:VEVENT',
-                'UID:test-event-robust@example.com',
-                `DTSTAMP:${toIcsDate(now)}`, // Dynamically generated, always correct
-                `DTSTART:${toIcsDate(eventStart)}`, // Explicitly UTC
-                `DTEND:${toIcsDate(eventEnd)}`,     // Explicitly UTC
-                'SUMMARY:My Robust Test Event',
-                'DESCRIPTION:This test uses dynamic and UTC-formatted dates.',
+                'UID:test-event-1@example.com',
+                `DTSTAMP:${toIcsDate(now)}`,
+                `DTSTART:${toIcsDate(event1Start)}`,
+                `DTEND:${toIcsDate(event1End)}`,
+                'SUMMARY:First Test Event',
+                'DESCRIPTION:This is the first of two events.',
                 'LOCATION:Leumeah, NSW, Australia',
                 'END:VEVENT',
+
+                // --- Second Event ---
+                'BEGIN:VEVENT',
+                'UID:test-event-2@example.com',
+                `DTSTAMP:${toIcsDate(now)}`,
+                `DTSTART:${toIcsDate(event2Start)}`,
+                `DTEND:${toIcsDate(event2End)}`,
+                'SUMMARY:Second Test Event',
+                'DESCRIPTION:This is the second of two events.',
+                'LOCATION:Campbelltown, NSW, Australia',
+                'END:VEVENT',
+
                 'END:VCALENDAR'
             ].join('\r\n');
 
@@ -67,8 +83,8 @@
             // 5. Create an anchor (<a>) element for the download link.
             const a = document.createElement('a');
             a.href = url;
-            a.textContent = 'Import Robust Test Event';
-            a.download = 'robust-test-event.ics';
+            a.textContent = 'Import Two Test Events';
+            a.download = 'multi-event-test.ics';
             a.className = 'inline-block bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors';
             
             // 6. Add a click listener to clean up the object URL after use to free up memory.
