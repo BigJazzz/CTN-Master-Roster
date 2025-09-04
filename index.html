@@ -5,8 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Master Roster Calendar Import</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -28,23 +26,6 @@
             background-color: #e9ecef;
             opacity: 0.7;
             cursor: not-allowed;
-        }
-        .day-checkbox {
-            display: none;
-            position: absolute;
-            top: 0.25rem;
-            right: 0.25rem;
-            height: 1.25rem;
-            width: 1.25rem;
-        }
-        .partial-select-active .day-checkbox {
-            display: block;
-        }
-        .partial-selection-controls {
-            display: none;
-        }
-        .partial-select-active .partial-selection-controls {
-            display: flex;
         }
     </style>
 </head>
@@ -74,29 +55,18 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label for="startDate" class="block text-sm font-medium text-gray-700 mb-1">Roster Start Date</label>
-                        <input type="date" id="startDate" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" disabled>
-                        <p class="text-xs text-gray-500 mt-1">Cannot be earlier than the roster's start.</p>
+                        <input type="date" id="startDate" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" disabled>
                     </div>
                     <div>
                         <label for="endDate" class="block text-sm font-medium text-gray-700 mb-1">Roster End Date</label>
-                        <input type="date" id="endDate" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" disabled>
-                        <p class="text-xs text-gray-500 mt-1">Adjusts to a full fortnight from the start date.</p>
+                        <input type="date" id="endDate" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" disabled>
                     </div>
                 </div>
                 
-                <div><p>Click the Check Data button to ensure the data is being fetched correctly.</p></div>
-
                 <div class="flex flex-col sm:flex-row gap-4 pt-2">
-                    <button type="button" id="testRunBtn" class="w-full bg-gray-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-200" disabled>
-                        Check Data (First Fortnight)
-                    </button>
                     <button type="submit" id="generateBtn" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200" disabled>
-                        Create Events
+                        Generate ICS Files
                     </button>
-                </div>
-                 <div class="mt-4 text-center">
-                    <input type="checkbox" id="partial" name="partial" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                    <label for="partial" class="ml-2 text-sm text-gray-700">Select specific shifts from the Check Data calendar</label>
                 </div>
             </form>
 
@@ -104,850 +74,316 @@
                 <div id="loader" class="loader mx-auto my-4 hidden"></div>
                 <p id="status" class="text-lg font-medium text-center"></p>
                 <div id="download-links" class="mt-4 space-y-3"></div>
-                <div id="test-run-output" class="mt-6 hidden"></div>
             </div>
         </div>
         <footer class="text-center text-sm text-gray-500 mt-6">
-            <p>Created by <a href="mailto:j@rryd.au">Jarryd Pearson</a>.</p>
+            <p>Created by Jarryd Pearson.</p>
         </footer>
     </div>
-
-    <button id="helpBtn" class="fixed bottom-4 right-4 bg-blue-600 text-white w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-2xl font-bold z-40 hover:bg-blue-700 transition-colors">?</button>
-
-    <div id="helpModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full hidden z-50 flex items-center justify-center">
-        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl">
-            <div class="flex justify-between items-center pb-3">
-                <h3 class="text-xl font-medium text-gray-900">How to Use This App</h3>
-                <button id="helpModalCloseBtn" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
-            </div>
-            <div class="mt-2">
-                <iframe id="helpFrame" class="w-full h-96 border rounded-md" src="help.html"></iframe>
-            </div>
-        </div>
-    </div>
-    <div id="noRosterModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full hidden z-50 flex items-center justify-center">
-        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
-            <div class="text-center">
-                <h3 class="text-lg leading-6 font-medium text-gray-900">No Roster Selected</h3>
-                <div class="mt-2 px-7 py-3">
-                    <p class="text-sm text-gray-500">
-                        Please select a roster from the "Which roster?" dropdown menu before proceeding.
-                    </p>
-                </div>
-                <div class="items-center px-4 py-3">
-                    <button id="noRosterOkBtn" class="w-full px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300">
-                        OK
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div id="dateSanityCheckModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full hidden z-50 flex items-center justify-center">
-        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
-            <div class="text-center">
-                <h3 class="text-lg leading-6 font-medium text-gray-900">Incorrect Start Date</h3>
-                <div class="mt-2 px-7 py-3"><p class="text-sm text-gray-500">The selected start date is not the beginning of a fortnight. Please choose one of the correct dates below to continue.</p></div>
-                <div class="items-center px-4 py-3 space-y-2">
-                    <button id="modalPrevDateBtn" class="w-full px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700"></button>
-                    <button id="modalNextDateBtn" class="w-full px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700"></button>
-                    <button id="modalCancelBtn" class="w-full px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-300">Cancel</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div id="reDownloadModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full hidden z-50 flex items-center justify-center">
-        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
-            <div class="text-center">
-                <h3 class="text-lg leading-6 font-medium text-gray-900">Re-download File?</h3>
-                <div class="mt-2 px-7 py-3"><p class="text-sm text-gray-500">You have already downloaded this file. Do you want to download it again?</p></div>
-                <div class="items-center px-4 py-3 space-x-4">
-                    <button id="reDownloadConfirmBtn" class="px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700">Yes</button>
-                    <button id="reDownloadCancelBtn" class="px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-300">No</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
+    
     <script>
-        const AppState = {
-            blockDataCache: {},
-            rosterDates: [],
-            gasUrl: 'https://script.google.com/macros/s/AKfycbxYIvUCKHqVT5ygPoXSi1F1bkvOOg41eaX-2UQq8Pfr9JHrxd7bALo1Vaey9FNrk3Ds/exec'
-        };
-
         document.addEventListener('DOMContentLoaded', () => {
-            const startDateInput = document.getElementById('startDate');
-            const endDateInput = document.getElementById('endDate');
-            const partialCheckbox = document.getElementById('partial');
-
-            document.getElementById('sheetName').addEventListener('change', handleRosterSelection);
-            
-            const handleStartDateChange = () => { adjustStartDate(); adjustEndDate(); };
-            startDateInput.addEventListener('input', handleStartDateChange);
-            startDateInput.addEventListener('blur', handleStartDateChange);
-
-            const handleEndDateChange = () => { adjustEndDate(); };
-            endDateInput.addEventListener('input', handleEndDateChange);
-            endDateInput.addEventListener('blur', handleEndDateChange);
-
-
-            document.getElementById('rosterForm').addEventListener('submit', (e) => runProcess(e, false));
-            document.getElementById('testRunBtn').addEventListener('click', (e) => runProcess(e, true));
-            
-            partialCheckbox.addEventListener('change', () => {
-                const testRunOutput = document.getElementById('test-run-output');
-                const endDateInput = document.getElementById('endDate');
-                const startDateInput = document.getElementById('startDate');
-
-                if (partialCheckbox.checked) {
-                    const onDateValidated = () => {
-                        testRunOutput.classList.add('partial-select-active');
-                        endDateInput.dataset.originalValue = endDateInput.value;
-                        const start = new Date(startDateInput.value + 'T00:00:00Z');
-                        if (!isNaN(start.getTime())) {
-                            const newEndDate = new Date(start);
-                            newEndDate.setUTCDate(start.getUTCDate() + 13);
-                            endDateInput.value = newEndDate.toISOString().split('T')[0];
-                            endDateInput.disabled = true;
-                        }
-                    };
-
-                    const onValidationCancel = () => {
-                        partialCheckbox.checked = false;
-                    };
-                    
-                    checkAndCorrectDate(onDateValidated, onValidationCancel);
-
-                } else {
-                    testRunOutput.classList.remove('partial-select-active');
-                    endDateInput.disabled = false;
-                    if (endDateInput.dataset.originalValue) {
-                        endDateInput.value = endDateInput.dataset.originalValue;
-                    }
-                    adjustEndDate();
-                }
-            });
-
-            document.getElementById('helpBtn').addEventListener('click', openHelpModal);
-            document.getElementById('helpModalCloseBtn').addEventListener('click', closeHelpModal);
-
-            if (!getCookie('testRunCompleted')) {
-                localStorage.removeItem('rosterAppCache');
-            }
-
-            initializeFromGasUrl();
-        });
-
-        function setCookie(name, value, days) {
-            let expires = "";
-            if (days) {
-                const date = new Date();
-                date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-                expires = "; expires=" + date.toUTCString();
-            }
-            document.cookie = name + "=" + (value || "") + expires + "; path=/; SameSite=Lax";
-        }
-
-        function getCookie(name) {
-            const nameEQ = name + "=";
-            const ca = document.cookie.split(';');
-            for (let i = 0; i < ca.length; i++) {
-                let c = ca[i];
-                while (c.charAt(0) == ' ') c = c.substring(1, c.length);
-                if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
-            }
-            return null;
-        }
-        
-        function parseDMY(dateString) {
-            const parts = dateString.match(/(\d+)/g);
-            if (!parts || parts.length < 3) return null;
-            return new Date(Date.UTC(parts[2], parts[1] - 1, parts[0]));
-        }
-
-        function adjustStartDate() {
-            const startDateInput = document.getElementById('startDate');
-            let start = new Date(startDateInput.value + 'T00:00:00Z');
-            const minDate = new Date(startDateInput.min + 'T00:00:00Z');
-            const maxDate = startDateInput.max ? new Date(startDateInput.max + 'T00:00:00Z') : null;
-
-            if (isNaN(start.getTime()) || start < minDate) start = minDate;
-            if (maxDate && start > maxDate) start = maxDate;
-            
-            startDateInput.value = start.toISOString().split('T')[0];
-        }
-
-        function adjustEndDate() {
-            const startDateInput = document.getElementById('startDate');
-            const endDateInput = document.getElementById('endDate');
-            const partialCheckbox = document.getElementById('partial');
-
-            if (partialCheckbox.checked) {
-                const start = new Date(startDateInput.value + 'T00:00:00Z');
-                 if (!isNaN(start.getTime())) {
-                    const newEndDate = new Date(start);
-                    newEndDate.setUTCDate(start.getUTCDate() + 13);
-                    endDateInput.value = newEndDate.toISOString().split('T')[0];
-                }
-                return;
-            }
-
-            let start = new Date(startDateInput.value + 'T00:00:00Z');
-            let end = new Date(endDateInput.value + 'T00:00:00Z');
-
-            if (isNaN(start.getTime())) return;
-
-            if (isNaN(end.getTime()) || end < start) {
-                end = new Date(start);
-                end.setUTCDate(start.getUTCDate() + 13);
-            }
-
-            const oneDay = 1000 * 60 * 60 * 24;
-            const diffDays = Math.round((end - start) / oneDay) + 1;
-            const numFortnights = Math.ceil(diffDays / 14);
-            const totalDays = numFortnights * 14;
-            let newEndDate = new Date(start);
-            newEndDate.setUTCDate(start.getUTCDate() + totalDays - 1);
-
-            const maxDateStr = endDateInput.max;
-            if (maxDateStr) {
-                const maxDate = new Date(maxDateStr + 'T00:00:00Z');
-                if (newEndDate > maxDate) newEndDate = maxDate;
-            }
-
-            endDateInput.value = newEndDate.toISOString().split('T')[0];
-        }
-
-        async function initializeFromGasUrl() {
+            const gasUrl = 'https://script.google.com/macros/s/AKfycbxYIvUCKHqVT5ygPoXSi1F1bkvOOg41eaX-2UQq8Pfr9JHrxd7bALo1Vaey9FNrk3Ds/exec';
             const sheetSelect = document.getElementById('sheetName');
-            sheetSelect.innerHTML = '<option>Loading rosters...</option>';
-            clearResults();
-            
-            const cachedData = localStorage.getItem('rosterAppCache');
-            if (cachedData) {
-                const { sheets, blocks } = JSON.parse(cachedData);
-                populateInitialDropdowns(sheets, blocks);
-                return;
-            }
-
-            const cacheBust = `&_=${new Date().getTime()}`;
-            try {
-                const [sheetsResponse, blocksResponse] = await Promise.all([
-                    fetch(`${AppState.gasUrl}?action=getSheets${cacheBust}`),
-                    fetch(`${AppState.gasUrl}?action=getBlocks${cacheBust}`)
-                ]);
-
-                const sheetsResult = await sheetsResponse.json();
-                if (!sheetsResult.success) throw new Error(sheetsResult.error);
-                
-                const blocksResult = await blocksResponse.json();
-                if (!blocksResult.success) throw new Error(blocksResult.error);
-                
-                populateInitialDropdowns(sheetsResult.data, blocksResult.data);
-
-            } catch (error) {
-                console.error('Initialization Error:', error);
-                showError(`Initialization failed: ${error.message}. The script URL may be incorrect or deployment needs to be updated.`);
-                sheetSelect.innerHTML = `<option>Error loading rosters</option>`;
-            }
-        }
-
-        function populateInitialDropdowns(sheetNames, blockData) {
-            const sheetSelect = document.getElementById('sheetName');
-            AppState.blockDataCache = blockData;
-            AppState.rosterDates = sheetNames
-                .map(name => parseDMY(name))
-                .filter(date => date !== null)
-                .sort((a, b) => a - b);
-            
-            sheetSelect.innerHTML = '<option value="">-- Select a roster --</option>';
-            sheetNames.forEach(name => {
-                const option = document.createElement('option');
-                option.value = name;
-                option.textContent = name;
-                sheetSelect.appendChild(option);
-            });
-            sheetSelect.disabled = false;
-            updateButtonStates();
-        }
-        
-        function updateButtonStates() {
-            const generateBtn = document.getElementById('generateBtn');
-            const testRunBtn = document.getElementById('testRunBtn');
-            const rosterSelected = !!document.getElementById('sheetName').value;
-
-            testRunBtn.disabled = !rosterSelected;
-            generateBtn.disabled = !(rosterSelected && getCookie('testRunCompleted') === 'true');
-        }
-
-        function handleRosterSelection() {
-            const selectedRoster = document.getElementById('sheetName').value;
-            const startDateInput = document.getElementById('startDate');
-            const endDateInput = document.getElementById('endDate');
             const startLineInput = document.getElementById('startLine');
-            const partialCheckbox = document.getElementById('partial');
+            const startDateInput = document.getElementById('startDate');
+            const endDateInput = document.getElementById('endDate');
+            const generateBtn = document.getElementById('generateBtn');
+            let rosterDates = [];
 
-            setCookie('testRunCompleted', '', -1); 
-            localStorage.removeItem('rosterAppCache');
+            async function initialize() {
+                sheetSelect.innerHTML = '<option>Loading rosters...</option>';
+                try {
+                    const response = await fetch(`${gasUrl}?action=getSheets`);
+                    const result = await response.json();
+                    if (!result.success) throw new Error(result.error);
 
-            // Also reset partial selection state
-            partialCheckbox.checked = false;
-            endDateInput.disabled = false;
-            document.getElementById('test-run-output').classList.remove('partial-select-active');
+                    rosterDates = result.data
+                        .map(name => parseDMY(name))
+                        .filter(date => date !== null)
+                        .sort((a, b) => a - b);
 
-
-            if (!selectedRoster) {
-                startDateInput.disabled = true;
-                endDateInput.disabled = true;
-                startLineInput.disabled = true;
-                updateButtonStates();
-                return;
+                    sheetSelect.innerHTML = '<option value="">-- Select a roster --</option>';
+                    result.data.forEach(name => {
+                        const option = document.createElement('option');
+                        option.value = name;
+                        option.textContent = name;
+                        sheetSelect.appendChild(option);
+                    });
+                    sheetSelect.disabled = false;
+                } catch (error) {
+                    console.error('Initialization Error:', error);
+                    sheetSelect.innerHTML = `<option>Error loading rosters</option>`;
+                }
             }
             
-            const rosterStartDate = parseDMY(selectedRoster);
-            if (rosterStartDate) {
-                const formattedDate = rosterStartDate.toISOString().split('T')[0];
-                startDateInput.value = formattedDate;
-                startDateInput.min = formattedDate;
-                endDateInput.min = formattedDate;
-                startDateInput.disabled = false;
-                endDateInput.disabled = false;
-                startLineInput.disabled = false;
+            function parseDMY(dateString) {
+                const parts = dateString.match(/(\d+)/g);
+                if (!parts || parts.length < 3) return null;
+                // Use new Date(YYYY, MM-1, DD) for local time, not UTC
+                return new Date(parts[2], parts[1] - 1, parts[0]);
+            }
 
-                const currentIndex = AppState.rosterDates.findIndex(d => d.getTime() === rosterStartDate.getTime());
-
-                if (currentIndex > -1 && currentIndex < AppState.rosterDates.length - 1) {
-                    const nextRosterStartDate = AppState.rosterDates[currentIndex + 1];
-                    const maxEndDate = new Date(nextRosterStartDate);
-                    maxEndDate.setUTCDate(maxEndDate.getUTCDate() - 1);
-                    endDateInput.max = maxEndDate.toISOString().split('T')[0];
-
-                    const latestStartDate = new Date(maxEndDate);
-                    latestStartDate.setUTCDate(latestStartDate.getUTCDate() - 13);
-                    startDateInput.max = latestStartDate.toISOString().split('T')[0];
-
-                } else {
-                    endDateInput.removeAttribute('max');
-                    startDateInput.removeAttribute('max');
+            sheetSelect.addEventListener('change', () => {
+                const selectedRoster = sheetSelect.value;
+                if (!selectedRoster) {
+                    [startLineInput, startDateInput, endDateInput, generateBtn].forEach(el => el.disabled = true);
+                    return;
                 }
                 
-                const defaultEndDate = new Date(rosterStartDate);
-                defaultEndDate.setUTCDate(rosterStartDate.getUTCDate() + 13);
-                endDateInput.value = defaultEndDate.toISOString().split('T')[0];
-                adjustEndDate();
-            }
-            updateButtonStates();
-        }
-
-        function clearResults() {
-            document.getElementById('results').classList.add('hidden');
-            document.getElementById('loader').classList.add('hidden');
-            document.getElementById('status').textContent = '';
-            document.getElementById('download-links').innerHTML = '';
-            document.getElementById('test-run-output').innerHTML = '';
-            document.getElementById('test-run-output').classList.add('hidden');
-            document.getElementById('test-run-output').classList.remove('partial-select-active');
-        }
-
-        function prepareForRun(statusMessage) {
-            clearResults();
-            const resultsDiv = document.getElementById('results');
-            const statusP = document.getElementById('status');
-            const loader = document.getElementById('loader');
-            
-            resultsDiv.classList.remove('hidden');
-            loader.classList.remove('hidden');
-            statusP.textContent = statusMessage;
-            statusP.className = 'text-lg font-medium text-center text-gray-700';
-        }
-
-        function isValidFortnightStartDate(date) {
-            const referenceDate = AppState.rosterDates[0];
-            if (!referenceDate) return false;
-            const oneDay = 1000 * 60 * 60 * 24;
-            const diffDays = Math.round((date - referenceDate) / oneDay);
-            return diffDays % 14 === 0;
-        }
-
-        function checkAndCorrectDate(onSuccessCallback, onCancelCallback = () => {}) {
-            const startDateInput = document.getElementById('startDate');
-            const start = new Date(startDateInput.value + 'T00:00:00Z');
-
-            if (isValidFortnightStartDate(start)) {
-                if (onSuccessCallback) onSuccessCallback();
-                return;
-            }
-            
-            const oneDay = 1000 * 60 * 60 * 24;
-            const referenceDate = AppState.rosterDates[0];
-            if (!referenceDate) {
-                showError("Roster reference date not found. Cannot validate start date.");
-                if(onCancelCallback) onCancelCallback();
-                return;
-            }
-            const diffDays = Math.round((start - referenceDate) / oneDay);
-            const remainder = diffDays % 14;
-            const prevDate = new Date(start);
-            prevDate.setUTCDate(start.getUTCDate() - remainder);
-            const nextDate = new Date(start);
-            nextDate.setUTCDate(start.getUTCDate() + (14 - remainder));
-
-            const modal = document.getElementById('dateSanityCheckModal');
-            const prevBtn = document.getElementById('modalPrevDateBtn');
-            const nextBtn = document.getElementById('modalNextDateBtn');
-            const cancelBtn = document.getElementById('modalCancelBtn');
-
-            prevBtn.textContent = `Use Previous: ${prevDate.toLocaleDateString()}`;
-            nextBtn.textContent = `Use Next: ${nextDate.toLocaleDateString()}`;
-
-            const newPrevBtn = prevBtn.cloneNode(true);
-            const newNextBtn = nextBtn.cloneNode(true);
-            const newCancelBtn = cancelBtn.cloneNode(true);
-
-            prevBtn.parentNode.replaceChild(newPrevBtn, prevBtn);
-            nextBtn.parentNode.replaceChild(newNextBtn, nextBtn);
-            cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
-
-            newPrevBtn.onclick = () => {
-                startDateInput.value = prevDate.toISOString().split('T')[0];
-                adjustEndDate();
-                if (onSuccessCallback) onSuccessCallback();
-                modal.classList.add('hidden');
-            };
-            newNextBtn.onclick = () => {
-                startDateInput.value = nextDate.toISOString().split('T')[0];
-                adjustEndDate();
-                if (onSuccessCallback) onSuccessCallback();
-                modal.classList.add('hidden');
-            };
-            newCancelBtn.onclick = () => {
-                if (onCancelCallback) onCancelCallback();
-                modal.classList.add('hidden');
-            };
-            
-            modal.classList.remove('hidden');
-        }
-
-        function runProcess(event, isTestRun) {
-            event.preventDefault();
-
-            const sheetName = document.getElementById('sheetName').value;
-            if (!sheetName) {
-                const modal = document.getElementById('noRosterModal');
-                modal.classList.remove('hidden');
-                document.getElementById('noRosterOkBtn').onclick = () => modal.classList.add('hidden');
-                return;
-            }
-
-            const callback = isTestRun ? proceedWithTestRun : proceedWithFormSubmit;
-            checkAndCorrectDate(callback);
-        }
-
-        async function proceedWithTestRun() {
-            const generateBtn = document.getElementById('generateBtn');
-            const testRunBtn = document.getElementById('testRunBtn');
-            generateBtn.disabled = true;
-            testRunBtn.disabled = true;
-
-            try {
-                const { sheetData, startDate, startLine, rosterBlocks } = await getAndValidateInputs();
-                prepareForRun(`Running test from line ${startLine}...`);
+                const rosterStartDate = parseDMY(selectedRoster);
+                if (rosterStartDate) {
+                    const formattedDate = toInputDateString(rosterStartDate);
+                    startDateInput.value = formattedDate;
+                    
+                    const defaultEndDate = new Date(rosterStartDate);
+                    defaultEndDate.setDate(rosterStartDate.getDate() + 13);
+                    endDateInput.value = toInputDateString(defaultEndDate);
+                }
                 
-                setTimeout(() => {
-                    const rosterData = generateRosterData(sheetData, startDate, null, startLine, rosterBlocks, 14);
-                    document.getElementById('loader').classList.add('hidden');
-                    document.getElementById('status').textContent = 'Test run complete.';
-                    document.getElementById('status').className = 'text-lg font-medium text-center text-green-600';
-                    displayTestTable(rosterData);
+                [startLineInput, startDateInput, endDateInput, generateBtn].forEach(el => el.disabled = false);
+            });
 
-                    if (document.getElementById('partial').checked) {
-                        document.getElementById('test-run-output').classList.add('partial-select-active');
-                    }
+            document.getElementById('rosterForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                await processRoster();
+            });
 
-                    setCookie('testRunCompleted', 'true', 7);
-                    const cachePayload = { sheets: AppState.rosterDates.map(d => d.toLocaleDateString('en-GB')), blocks: AppState.blockDataCache };
-                    localStorage.setItem('rosterAppCache', JSON.stringify(cachePayload));
-                    updateButtonStates();
-                }, 50);
+            async function processRoster() {
+                const sheetName = sheetSelect.value;
+                const startLine = parseInt(startLineInput.value, 10);
+                const startDate = new Date(startDateInput.value); // Reads as local time
+                const endDate = new Date(endDateInput.value); // Reads as local time
 
-            } catch (error) {
-                console.error('Error during test run:', error);
-                showError(error.message);
-                updateButtonStates();
-            }
-        }
+                if (!sheetName || isNaN(startLine)) {
+                    alert('Please select a roster and enter a valid starting line number.');
+                    return;
+                }
 
-        async function proceedWithFormSubmit() {
-            const generateBtn = document.getElementById('generateBtn');
-            const testRunBtn = document.getElementById('testRunBtn');
-            generateBtn.disabled = true;
-            testRunBtn.disabled = true;
-
-            try {
-                const { sheetData, startDate, endDate, startLine, rosterBlocks } = await getAndValidateInputs();
                 prepareForRun(`Generating calendar from line ${startLine}...`);
 
-                const isPartial = document.getElementById('partial').checked;
-                let selectedDays = null;
-                if (isPartial) {
-                    selectedDays = Array.from(document.querySelectorAll('#test-run-output .day-checkbox:checked')).map(cb => cb.value);
-                    if (selectedDays.length === 0) {
-                        throw new Error("Please select at least one day from the grid when 'Select specific shifts' is checked.");
-                    }
-                }
+                try {
+                    const sheetData = await fetchSheetData(gasUrl, sheetName);
+                    
+                    const { shiftEvents, dayOffEvents } = parseRosterData(sheetData, startDate, endDate, startLine);
 
-                setTimeout(async () => {
-                    const icsData = generateIcsContent(sheetData, startDate, endDate, startLine, rosterBlocks, selectedDays);
                     document.getElementById('loader').classList.add('hidden');
+
+                    if (shiftEvents.length === 0 && dayOffEvents.length === 0) {
+                        showStatus('No valid shifts or days off found to generate.', 'yellow');
+                        return;
+                    }
                     
-                    const shiftFileCount = icsData.shifts.length;
-                    const dayOffFileCount = icsData.daysOff.length;
+                    showStatus('Successfully generated calendar files!', 'green');
 
-                    if (shiftFileCount === 0 && dayOffFileCount === 0) {
-                        document.getElementById('status').textContent = 'No events were selected. Nothing to generate.';
-                        document.getElementById('status').className = 'text-lg font-medium text-center text-yellow-600';
-                    } else {
-                        document.getElementById('status').textContent = 'Successfully generated calendar files!';
-                        document.getElementById('status').className = 'text-lg font-medium text-center text-green-600';
-                        
-                        const isIOS = (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-                        const actionWord = isIOS ? 'Import' : 'Download';
-
-                        if (shiftFileCount > 0) {
-                             for (let i = 0; i < icsData.shifts.length; i++) {
-                                const chunk = icsData.shifts[i];
-                                const linkText = shiftFileCount > 1 ? `${actionWord} Shifts (Part ${i + 1})` : `${actionWord} Shifts`;
-                                const filename = shiftFileCount > 1 ? `shifts-part-${i + 1}.ics` : 'shifts.ics';
-                                await createDownloadLink(filename, chunk, linkText);
-                            }
-                        }
-    
-                        if (dayOffFileCount > 0) {
-                            for (let i = 0; i < icsData.daysOff.length; i++) {
-                                const chunk = icsData.daysOff[i];
-                                const linkText = dayOffFileCount > 1 ? `${actionWord} Days Off (Part ${i + 1})` : `${actionWord} Days Off`;
-                                const filename = dayOffFileCount > 1 ? `daysoff-part-${i + 1}.ics` : 'daysoff.ics';
-                                await createDownloadLink(filename, chunk, linkText);
-                            }
-                        }
+                    if (shiftEvents.length > 0) {
+                        const icsContent = generateIcsContent(shiftEvents, false);
+                        createDownloadLink('shifts.ics', 'Download Shifts', icsContent);
                     }
-                    updateButtonStates();
-                }, 50);
-
-            } catch (error) {
-                console.error('Error during process:', error);
-                showError(error.message);
-                updateButtonStates();
-            }
-        }
-        
-        async function getAndValidateInputs() {
-            const sheetName = document.getElementById('sheetName').value;
-            const startDate = document.getElementById('startDate').value;
-            const endDate = document.getElementById('endDate').value;
-            const startLine = parseInt(document.getElementById('startLine').value, 10);
-            
-            const allBlockStrings = AppState.blockDataCache[sheetName] || [];
-            const targetBlockString = allBlockStrings.find(bStr => {
-                const [start, end] = bStr.split('-').map(Number);
-                return startLine >= start && startLine <= end;
-            });
-
-            if (!targetBlockString) {
-                throw new Error(`The starting line number ${startLine} does not fall within any of the defined blocks for this roster.`);
-            }
-
-            if (!sheetName || !startDate || !endDate || isNaN(startLine)) {
-                throw new Error('Please fill in all fields.');
-            }
-
-            const sheetData = await fetchSheetData(AppState.gasUrl, sheetName);
-            const rosterBlocks = parseRosterBlocks(targetBlockString);
-            if (rosterBlocks.length === 0) throw new Error('Invalid roster block format. Use format like "3-20".');
-            
-            return { sheetData, startDate, endDate, startLine, rosterBlocks };
-        }
-
-        function showError(message) {
-            const statusP = document.getElementById('status');
-            document.getElementById('loader').classList.add('hidden');
-            statusP.textContent = `Error: ${message}`;
-            statusP.className = 'text-lg font-medium text-center text-red-600';
-        }
-
-        async function fetchSheetData(gasUrl, sheetName) {
-            const cacheBust = `&_=${new Date().getTime()}`;
-            const url = `${gasUrl}?action=getSheetData&sheetName=${encodeURIComponent(sheetName)}${cacheBust}`;
-            const response = await fetch(url);
-            const result = await response.json();
-            if (!result.success) throw new Error(result.error || 'Failed to fetch data via Apps Script.');
-            return result.data || [];
-        }
-
-        function parseRosterBlocks(blocksStr) {
-            return blocksStr.split(',').map(part => {
-                const range = part.trim().split('-');
-                if (range.length !== 2) return null;
-                const start = parseInt(range[0], 10);
-                const end = parseInt(range[1], 10);
-                return (!isNaN(start) && !isNaN(end) && start <= end) ? { start, end } : null;
-            }).filter(Boolean);
-        }
-
-        function generateRosterData(sheetData, startDateStr, endDateStr, startLine, rosterBlocks, numberOfDays = null) {
-            const rosterOutput = [];
-            let currentDate = new Date(startDateStr + 'T00:00:00Z');
-            const finalDate = endDateStr ? new Date(endDateStr + 'T00:00:00Z') : null;
-            let currentLine = startLine;
-            const dataMap = new Map(sheetData.map(row => [parseInt(row[0], 10), row]).filter(([key]) => !isNaN(key)));
-            let dayCounter = 0;
-
-            while (true) {
-                if ((numberOfDays && dayCounter >= numberOfDays) || (finalDate && currentDate > finalDate) || (!numberOfDays && !finalDate && dayCounter >= 365*5)) break; 
-
-                if (dayCounter > 0 && dayCounter % 14 === 0) {
-                    const currentBlock = rosterBlocks.find(b => currentLine >= b.start && currentLine <= b.end);
-                    currentLine++;
-                    if (currentBlock && currentLine > currentBlock.end) currentLine = currentBlock.start;
-                }
-
-                const dayOfWeek = currentDate.getUTCDay();
-                const dayInFortnight = dayCounter % 14;
-                const columnIndex = dayInFortnight < 7 ? dayOfWeek + 1 : dayOfWeek + 8;
-                const rowData = dataMap.get(currentLine);
-                const cellContent = (rowData && rowData[columnIndex]) ? String(rowData[columnIndex]).trim() : '';
-                let eventType = null, eventDetails = null;
-
-                if (cellContent.toUpperCase() === 'OFF' || cellContent.toUpperCase() === 'ADO') {
-                    eventType = 'dayOff';
-                    eventDetails = cellContent;
-                } else if (cellContent) {
-                    const shiftDetails = parseShiftDetails(cellContent);
-                    if (shiftDetails) {
-                        eventType = 'shift';
-                        eventDetails = shiftDetails;
+                    if (dayOffEvents.length > 0) {
+                        const icsContent = generateIcsContent(dayOffEvents, true);
+                        createDownloadLink('daysoff.ics', 'Download Days Off', icsContent);
                     }
+                } catch (error) {
+                    console.error('Error during process:', error);
+                    showError(error.message);
                 }
-
-                rosterOutput.push({ date: new Date(currentDate), eventType, eventDetails, lineNumber: currentLine });
-                currentDate.setUTCDate(currentDate.getUTCDate() + 1);
-                dayCounter++;
             }
-            return rosterOutput;
-        }
 
-        function generateIcsContent(sheetData, startDateStr, endDateStr, startLine, rosterBlocks, selectedDays = null) {
-            let rosterData = generateRosterData(sheetData, startDateStr, endDateStr, startLine, rosterBlocks);
+            function parseRosterData(sheetData, rosterStartDate, rosterEndDate, startLine) {
+                 const shiftEvents = [];
+                 const dayOffEvents = [];
+                 const dataMap = new Map(sheetData.map(row => [parseInt(row[0], 10), row]).filter(([key]) => !isNaN(key)));
+
+                 let currentLine = startLine;
+                 let dayCounter = 0;
+
+                 // Assuming the roster block logic is simplified to just incrementing line number every 14 days
+                 for (let d = new Date(rosterStartDate); d <= rosterEndDate; d.setDate(d.getDate() + 1)) {
+                     
+                     if (dayCounter > 0 && dayCounter % 14 === 0) {
+                         currentLine++; // Simplified logic
+                     }
+
+                     const rowData = dataMap.get(currentLine);
+                     const dayInFortnight = dayCounter % 14;
+                     const columnIndex = dayInFortnight + 1;
+                     const cellContent = (rowData && rowData[columnIndex]) ? String(rowData[columnIndex]).trim() : '';
+                     
+                     const shiftMatch = parseShiftDetails(cellContent);
+                     const eventDate = new Date(d); // Important: Use the loop date
+
+                     if (shiftMatch) {
+                        const startTime = shiftMatch.startTime;
+                        const endTime = shiftMatch.endTime;
+
+                        const eventStartDate = new Date(eventDate);
+                        eventStartDate.setHours(...startTime.split(':'), 0, 0);
+                        const eventEndDate = new Date(eventDate);
+                        eventEndDate.setHours(...endTime.split(':'), 0, 0);
+
+                        if (eventEndDate < eventStartDate) {
+                            eventEndDate.setDate(eventEndDate.getDate() + 1);
+                        }
+
+                        shiftEvents.push({
+                            uid: `shift-${currentLine}-${dayCounter}@example.com`,
+                            start: eventStartDate,
+                            end: eventEndDate,
+                            summary: shiftMatch.summary,
+                            description: shiftMatch.description
+                        });
+
+                     } else if (cellContent.toUpperCase() === 'OFF' || cellContent.toUpperCase() === 'ADO') {
+                         dayOffEvents.push({
+                            uid: `dayoff-${currentLine}-${dayCounter}@example.com`,
+                            start: eventDate,
+                            summary: cellContent.toUpperCase()
+                         });
+                     }
+                     dayCounter++;
+                 }
+                 return { shiftEvents, dayOffEvents };
+            }
+
+            // --- Helper Functions (Adapted from test.html) ---
+
+            const toIcsUtcDate = (date) => date.toISOString().replace(/[-:.]/g, '').slice(0, 15) + 'Z';
             
-            if (selectedDays && selectedDays.length > 0) {
-                const selectionSet = new Set(selectedDays);
-                rosterData = rosterData.filter(day => selectionSet.has(day.date.toISOString().split('T')[0]));
-            }
-
-            let shiftEvents = [], daysOffEvents = [];
-
-            rosterData.forEach(day => {
-                if (day.eventType === 'shift') shiftEvents.push(createIcsEvent(day.date, day.eventDetails, false));
-                else if (day.eventType === 'dayOff') daysOffEvents.push(createIcsEvent(day.date, day.eventDetails, true));
-            });
-
-            const MAX_SIZE = 1 * 1024 * 1024; // 1MB
-            return {
-                shifts: shiftEvents.length > 0 ? chunkEvents(shiftEvents, MAX_SIZE) : [],
-                daysOff: daysOffEvents.length > 0 ? chunkEvents(daysOffEvents, MAX_SIZE) : []
+            const toIcsFloatingDate = (date) => {
+                const year = date.getFullYear();
+                const month = ('0' + (date.getMonth() + 1)).slice(-2);
+                const day = ('0' + date.getDate()).slice(-2);
+                const hours = ('0' + date.getHours()).slice(-2);
+                const minutes = ('0' + date.getMinutes()).slice(-2);
+                const seconds = ('0' + date.getSeconds()).slice(-2);
+                return `${year}${month}${day}T${hours}${minutes}${seconds}`;
             };
-        }
 
-        function chunkEvents(events, maxSize) {
-            if (events.length === 0) return [];
-            const chunks = [];
-            let currentChunk = [];
-            let currentSize = 0;
-            const eventSize = 250; 
+            const toIcsAllDayDate = (date) => {
+                const year = date.getFullYear();
+                const month = ('0' + (date.getMonth() + 1)).slice(-2);
+                const day = ('0' + date.getDate()).slice(-2);
+                return `${year}${month}${day}`;
+            };
 
-            for (const event of events) {
-                if (currentSize + eventSize > maxSize && currentChunk.length > 0) {
-                    chunks.push(createIcsFile(currentChunk));
-                    currentChunk = [];
-                    currentSize = 0;
-                }
-                currentChunk.push(event);
-                currentSize += eventSize;
+            const toInputDateString = (date) => {
+                const year = date.getFullYear();
+                const month = ('0' + (date.getMonth() + 1)).slice(-2);
+                const day = ('0' + date.getDate()).slice(-2);
+                return `${year}-${month}-${day}`;
             }
-            if (currentChunk.length > 0) chunks.push(createIcsFile(currentChunk));
-            return chunks;
-        }
+            
+            function parseShiftDetails(content) {
+                const regex = /^(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})(?:\s+(.+))?/;
+                const match = content.match(regex);
+                if (!match) return null;
 
-        function displayTestTable(data) {
-            const container = document.getElementById('test-run-output');
-            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-            let tableHTML = `<h3 class="text-xl font-semibold mb-4 text-left">Test Run Results (First Fortnight)</h3>`;
+                const startTime = match[1];
+                const endTime = match[2];
+                const rawDetails = match[3] ? match[3].trim() : '';
 
-            tableHTML += `<div class="partial-selection-controls mb-4 flex gap-4">
-                <button type="button" id="selectAllBtn" class="px-4 py-2 text-sm bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200">Select All</button>
-                <button type="button" id="selectNoneBtn" class="px-4 py-2 text-sm bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200">Select None</button>
-            </div>`;
+                let summary = 'Shift';
+                let description = '';
 
-            for (let week = 0; week < 2; week++) {
-                const weekData = data.slice(week * 7, (week + 1) * 7);
-                if (weekData.length === 0) continue;
+                // This robust parsing is from test.html
+                const fxxRegex = /\s*F\d{1,2}$/;
+                let detailsToProcess = rawDetails.replace(fxxRegex, '').trim();
 
-                tableHTML += `<div class="overflow-x-auto rounded-lg border border-gray-200 ${week > 0 ? 'mt-4' : ''}">
-                    <table class="min-w-full table-fixed"><thead class="bg-gray-50"><tr>`;
-                days.forEach(day => { tableHTML += `<th class="px-2 py-2 text-xs font-medium text-gray-600 uppercase tracking-wider text-center">${day}</th>`; });
-                tableHTML += `</tr></thead><tbody class="bg-white divide-x divide-gray-200"><tr>`;
-                weekData.forEach(day => {
-                    const date = day.date.getUTCDate();
-                    const dateString = day.date.toISOString().split('T')[0];
-                    let content = '', bgColor = 'bg-white';
-
-                    if (day.eventType === 'shift') {
-                        const details = day.eventDetails;
-                        content = `<div class="font-semibold text-gray-800">${details.start} - ${details.end}</div><div class="mt-1 text-gray-600">${details.summary}</div>`;
-                        bgColor = 'bg-green-50';
-                    } else if (day.eventType === 'dayOff') {
-                        content = `<span class="font-bold text-blue-600">${day.eventDetails}</span>`;
-                        bgColor = 'bg-blue-50';
+                const fourDigitRegex = /^\d{4}/;
+                if (detailsToProcess.match(fourDigitRegex)) {
+                    const firstSpaceIndex = detailsToProcess.indexOf(' ');
+                    if (firstSpaceIndex !== -1) {
+                        summary = detailsToProcess.substring(0, firstSpaceIndex).trim();
+                        description = detailsToProcess.substring(firstSpaceIndex + 1).trim();
                     } else {
-                        content = '<span class="text-gray-400">---</span>';
-                        bgColor = 'bg-gray-50';
+                        summary = detailsToProcess;
                     }
-
-                    tableHTML += `<td class="h-32 align-top p-2 relative ${bgColor}">
-                                    <input type="checkbox" class="day-checkbox" value="${dateString}">
-                                    <div class="flex justify-between items-baseline">
-                                        <div class="font-bold text-gray-900">${date}</div>
-                                        <div class="text-xs text-gray-400 font-mono">L${day.lineNumber}</div>
-                                    </div>
-                                    <div class="text-xs mt-1 break-words">${content}</div>
-                                  </td>`;
-                });
-                tableHTML += `</tr></tbody></table></div>`;
-            }
-            container.innerHTML = tableHTML;
-
-            const selectAllBtn = document.getElementById('selectAllBtn');
-            const selectNoneBtn = document.getElementById('selectNoneBtn');
-
-            if (selectAllBtn && selectNoneBtn) {
-                selectAllBtn.addEventListener('click', () => {
-                    document.querySelectorAll('.day-checkbox').forEach(cb => cb.checked = true);
-                });
-                selectNoneBtn.addEventListener('click', () => {
-                    document.querySelectorAll('.day-checkbox').forEach(cb => cb.checked = false);
-                });
-            }
-
-            container.classList.remove('hidden');
-        }
-
-        function parseShiftDetails(content) {
-            const regex = /^(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})(?:\s+(.+))?/;
-            const match = content.match(regex);
-            
-            if (!match) return null;
-            
-            const startTime = match[1];
-            const endTime = match[2];
-            const summary = match[3] ? match[3].trim() : 'Shift';
-
-            return { start: startTime, end: endTime, summary: summary };
-        }
-
-        function createIcsEvent(date, details, isAllDay) {
-            const uid = `${date.toISOString().slice(0,10)}-${Math.random().toString(36).substr(2, 9)}@roster.app`;
-            const dtstamp = new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15) + 'Z';
-            let eventString = 'BEGIN:VEVENT\n';
-            eventString += `UID:${uid}\n`;
-            eventString += `DTSTAMP:${dtstamp}\n`;
-
-            if (isAllDay) {
-                const yyyy = date.getUTCFullYear();
-                const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
-                const dd = String(date.getUTCDate()).padStart(2, '0');
-                eventString += `DTSTART;VALUE=DATE:${yyyy}${mm}${dd}\n`;
-                eventString += `SUMMARY:${details}\n`;
-            } else {
-                const startDate = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), ...details.start.split(':')));
-                const endDate = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), ...details.end.split(':')));
-                if (endDate < startDate) endDate.setUTCDate(endDate.getUTCDate() + 1);
-                const formatIcsDate = (d) => d.toISOString().replace(/[-:.]/g, '').slice(0, 15);
-                eventString += `DTSTART:${formatIcsDate(startDate)}\n`;
-                eventString += `DTEND:${formatIcsDate(endDate)}\n`;
-                eventString += `SUMMARY:${details.summary}\n`;
-            }
-            eventString += 'END:VEVENT\n';
-            return eventString;
-        }
-
-        function createIcsFile(events) {
-            return `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Gemini//RosterApp//EN\n${events.join('')}END:VCALendar`;
-        }
-
-        async function createDownloadLink(filename, content, linkText) {
-            const downloadLinksDiv = document.getElementById('download-links');
-            const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
-            
-            const a = document.createElement('a');
-            a.textContent = linkText;
-            a.className = 'block w-full bg-blue-200 text-blue-800 font-semibold py-2 px-4 rounded-lg hover:bg-blue-300 transition-colors duration-200 text-center';
-
-            const url = URL.createObjectURL(blob);
-            a.href = url;
-            a.download = filename;
-
-            a.addEventListener('click', (e) => {
-                const isIOS = (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-                if (!isIOS && a.dataset.clicked === 'true') {
-                    e.preventDefault();
-                    const modal = document.getElementById('reDownloadModal');
-                    modal.classList.remove('hidden');
-
-                    const confirmBtn = document.getElementById('reDownloadConfirmBtn');
-                    const newConfirmBtn = confirmBtn.cloneNode(true);
-                    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
-                    
-                    newConfirmBtn.onclick = () => {
-                        const tempLink = document.createElement('a');
-                        tempLink.href = a.href;
-                        tempLink.download = a.download;
-                        document.body.appendChild(tempLink);
-                        tempLink.click();
-                        document.body.removeChild(tempLink);
-                        modal.classList.add('hidden');
-                    };
-
-                    document.getElementById('reDownloadCancelBtn').onclick = () => {
-                        modal.classList.add('hidden');
-                    };
                 } else {
-                    if (a.dataset.clicked !== 'true') {
-                        a.dataset.clicked = 'true';
-                        a.classList.remove('bg-blue-200', 'text-blue-800', 'hover:bg-blue-300');
-                        a.classList.add('bg-gray-200', 'text-gray-500', 'hover:bg-gray-300');
-                    }
+                    summary = detailsToProcess;
                 }
-            });
+
+                if (!summary) summary = 'Shift';
+                
+                return { startTime, endTime, summary, description };
+            }
+
+            function generateIcsContent(events, isAllDay = false) {
+                const now = new Date();
+                let icsLines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Gemini//RosterApp//EN'];
+                events.forEach(event => {
+                    icsLines.push('BEGIN:VEVENT', `UID:${event.uid}`, `DTSTAMP:${toIcsUtcDate(now)}`);
+                    if (isAllDay) {
+                        icsLines.push(`DTSTART;VALUE=DATE:${toIcsAllDayDate(event.start)}`);
+                    } else {
+                        icsLines.push(`DTSTART:${toIcsFloatingDate(event.start)}`, `DTEND:${toIcsFloatingDate(event.end)}`);
+                    }
+                    icsLines.push(`SUMMARY:${event.summary}`);
+                    if (event.description) {
+                        icsLines.push(`DESCRIPTION:${event.description}`);
+                    }
+                    icsLines.push('END:VEVENT');
+                });
+                icsLines.push('END:VCALENDAR');
+                return icsLines.join('\r\n');
+            };
             
-            a.addEventListener('click', () => {
-                setTimeout(() => { URL.revokeObjectURL(url) }, 150);
-            }, { once: true });
+            function createDownloadLink(filename, linkText, icsContent) {
+                const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.textContent = linkText;
+                a.download = filename;
+                a.className = 'block w-full bg-green-200 text-green-800 font-semibold py-2 px-4 rounded-lg hover:bg-green-300 transition-colors duration-200 text-center';
+                
+                document.getElementById('download-links').appendChild(a);
 
+                // Revoke the object URL after a short delay to allow the download to start
+                 a.addEventListener('click', () => {
+                    setTimeout(() => { URL.revokeObjectURL(url) }, 150);
+                }, { once: true });
+            };
+            
+            async function fetchSheetData(gasUrl, sheetName) {
+                const url = `${gasUrl}?action=getSheetData&sheetName=${encodeURIComponent(sheetName)}`;
+                const response = await fetch(url);
+                const result = await response.json();
+                if (!result.success) throw new Error(result.error || 'Failed to fetch data.');
+                return result.data || [];
+            }
 
-            downloadLinksDiv.appendChild(a);
-        }
+            function prepareForRun(message) {
+                const resultsDiv = document.getElementById('results');
+                const statusP = document.getElementById('status');
+                const loader = document.getElementById('loader');
+                
+                resultsDiv.classList.remove('hidden');
+                loader.classList.remove('hidden');
+                document.getElementById('download-links').innerHTML = '';
+                statusP.textContent = message;
+                statusP.className = 'text-lg font-medium text-center text-gray-700';
+            }
 
-        function openHelpModal() {
-            const helpFrame = document.getElementById('helpFrame');
-            const helpModal = document.getElementById('helpModal');
-            helpFrame.src = 'help.html';
-            helpModal.classList.remove('hidden');
-        }
+            function showStatus(message, color) {
+                const statusP = document.getElementById('status');
+                statusP.textContent = message;
+                const colorClasses = {
+                    green: 'text-green-600',
+                    yellow: 'text-yellow-600',
+                    red: 'text-red-600'
+                };
+                statusP.className = `text-lg font-medium text-center ${colorClasses[color] || 'text-gray-700'}`;
+            }
 
-        function closeHelpModal() {
-            document.getElementById('helpModal').classList.add('hidden');
-        }
+            function showError(message) {
+                document.getElementById('loader').classList.add('hidden');
+                showStatus(`Error: ${message}`, 'red');
+            }
+
+            initialize();
+        });
     </script>
 </body>
 </html>
+
