@@ -67,7 +67,7 @@
                     </div>
                      <div>
                         <label for="startLine" class="block text-sm font-medium text-gray-700 mb-1">Starting Line Number</label>
-                        <input type="number" id="startLine" value="3" min="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 3" disabled>
+                        <input type="number" id="startLine" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 3" disabled>
                     </div>
                 </div>
                 
@@ -896,12 +896,10 @@
             a.href = url;
             a.download = filename;
 
-            a.addEventListener('click', () => {
-                setTimeout(() => URL.revokeObjectURL(url), 100);
-            });
-            
             a.addEventListener('click', (e) => {
-                if (a.dataset.clicked === 'true') {
+                const isIOS = (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+                if (!isIOS && a.dataset.clicked === 'true') {
                     e.preventDefault();
                     const modal = document.getElementById('reDownloadModal');
                     modal.classList.remove('hidden');
@@ -911,28 +909,31 @@
                     confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
                     
                     newConfirmBtn.onclick = () => {
-                        const isIOS = (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-                        if (!isIOS) {
-                            const tempLink = document.createElement('a');
-                            tempLink.href = a.href;
-                            tempLink.download = a.download;
-                            document.body.appendChild(tempLink);
-                            tempLink.click();
-                            document.body.removeChild(tempLink);
-                        } else {
-                            window.location.href = a.href;
-                        }
+                        const tempLink = document.createElement('a');
+                        tempLink.href = a.href;
+                        tempLink.download = a.download;
+                        document.body.appendChild(tempLink);
+                        tempLink.click();
+                        document.body.removeChild(tempLink);
                         modal.classList.add('hidden');
                     };
+
                     document.getElementById('reDownloadCancelBtn').onclick = () => {
                         modal.classList.add('hidden');
                     };
                 } else {
-                    a.dataset.clicked = 'true';
-                    a.classList.remove('bg-blue-200', 'text-blue-800', 'hover:bg-blue-300');
-                    a.classList.add('bg-gray-200', 'text-gray-500', 'hover:bg-gray-300');
+                    if (a.dataset.clicked !== 'true') {
+                        a.dataset.clicked = 'true';
+                        a.classList.remove('bg-blue-200', 'text-blue-800', 'hover:bg-blue-300');
+                        a.classList.add('bg-gray-200', 'text-gray-500', 'hover:bg-gray-300');
+                    }
                 }
             });
+            
+            a.addEventListener('click', () => {
+                setTimeout(() => { URL.revokeObjectURL(url) }, 150);
+            }, { once: true });
+
 
             downloadLinksDiv.appendChild(a);
         }
