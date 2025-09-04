@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iOS Download Test (Multi-Event)</title>
+    <title>iOS Download Test (Floating Time)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
@@ -13,9 +13,9 @@
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
 
     <div class="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
-        <h1 class="text-2xl font-bold text-gray-800 mb-4">iOS Download Test (Multi-Event)</h1>
+        <h1 class="text-2xl font-bold text-gray-800 mb-4">iOS Download Test (Floating Time)</h1>
         <p class="text-gray-600 mb-6">
-            This version generates a single file with two separate calendar events. Click the link to test the import.
+            This version uses "floating" local times for the events, without explicit timezone information.
         </p>
 
         <div id="link-container"></div>
@@ -24,8 +24,8 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             
-            // Helper function to format a Date object into YYYYMMDDTHHMMSSZ format for iCalendar
-            const toIcsDate = (date) => {
+            // Helper function to format a Date object into UTC time (YYYYMMDDTHHMMSSZ)
+            const toIcsUtcDate = (date) => {
                 return date.getUTCFullYear() +
                     ('0' + (date.getUTCMonth() + 1)).slice(-2) +
                     ('0' + date.getUTCDate()).slice(-2) +
@@ -36,12 +36,23 @@
                     'Z';
             };
 
-            // 1. Define event dates.
+            // Helper function to format a Date object into FLOATING time (YYYYMMDDTHHMMSS)
+            const toIcsFloatingDate = (date) => {
+                return date.getFullYear() +
+                    ('0' + (date.getMonth() + 1)).slice(-2) +
+                    ('0' + date.getDate()).slice(-2) +
+                    'T' +
+                    ('0' + date.getHours()).slice(-2) +
+                    ('0' + date.getMinutes()).slice(-2) +
+                    ('0' + date.getSeconds()).slice(-2);
+            };
+
+            // 1. Define event dates. These will be interpreted in the browser's local time.
             const now = new Date();
-            const event1Start = new Date('2025-09-05T10:00:00Z');
-            const event1End = new Date('2025-09-05T11:00:00Z');
-            const event2Start = new Date('2025-09-06T14:00:00Z');
-            const event2End = new Date('2025-09-06T15:30:00Z');
+            const event1Start = new Date('2025-09-05T10:00:00');
+            const event1End = new Date('2025-09-05T11:00:00');
+            const event2Start = new Date('2025-09-06T14:00:00');
+            const event2End = new Date('2025-09-06T15:30:00');
 
             // 2. iCalendar (.ics) data with two separate VEVENT blocks.
             const icsContent = [
@@ -51,22 +62,22 @@
                 
                 // --- First Event ---
                 'BEGIN:VEVENT',
-                'UID:test-event-1@example.com',
-                `DTSTAMP:${toIcsDate(now)}`,
-                `DTSTART:${toIcsDate(event1Start)}`,
-                `DTEND:${toIcsDate(event1End)}`,
-                'SUMMARY:First Test Event',
+                'UID:test-event-1-floating@example.com',
+                `DTSTAMP:${toIcsUtcDate(now)}`, // DTSTAMP should always be UTC
+                `DTSTART:${toIcsFloatingDate(event1Start)}`, // Floating time
+                `DTEND:${toIcsFloatingDate(event1End)}`,     // Floating time
+                'SUMMARY:First Floating Event',
                 'DESCRIPTION:This is the first of two events.',
                 'LOCATION:Leumeah, NSW, Australia',
                 'END:VEVENT',
 
                 // --- Second Event ---
                 'BEGIN:VEVENT',
-                'UID:test-event-2@example.com',
-                `DTSTAMP:${toIcsDate(now)}`,
-                `DTSTART:${toIcsDate(event2Start)}`,
-                `DTEND:${toIcsDate(event2End)}`,
-                'SUMMARY:Second Test Event',
+                'UID:test-event-2-floating@example.com',
+                `DTSTAMP:${toIcsUtcDate(now)}`, // DTSTAMP should always be UTC
+                `DTSTART:${toIcsFloatingDate(event2Start)}`, // Floating time
+                `DTEND:${toIcsFloatingDate(event2End)}`,     // Floating time
+                'SUMMARY:Second Floating Event',
                 'DESCRIPTION:This is the second of two events.',
                 'LOCATION:Campbelltown, NSW, Australia',
                 'END:VEVENT',
@@ -83,8 +94,8 @@
             // 5. Create an anchor (<a>) element for the download link.
             const a = document.createElement('a');
             a.href = url;
-            a.textContent = 'Import Two Test Events';
-            a.download = 'multi-event-test.ics';
+            a.textContent = 'Import Floating Time Events';
+            a.download = 'floating-time-test.ics';
             a.className = 'inline-block bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors';
             
             // 6. Add a click listener to clean up the object URL after use to free up memory.
