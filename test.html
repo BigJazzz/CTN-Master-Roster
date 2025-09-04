@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iOS Download Test (Dynamic Content)</title>
+    <title>iOS Download Test (w/ Confirmation)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
@@ -13,13 +13,28 @@
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
 
     <div class="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
-        <h1 class="text-2xl font-bold text-gray-800 mb-4">iOS Download Test (Dynamic Content)</h1>
+        <h1 class="text-xl sm:text-2xl font-bold text-gray-800 mb-4">iOS Download Test (w/ Confirmation)</h1>
         <p class="text-gray-600 mb-6">
-            This version dynamically generates the calendar file from a JavaScript array of events.
+            This version includes a re-download confirmation on the second tap.
         </p>
 
-        <div id="link-container"></div>
+        <div id="link-container" class="flex flex-col sm:flex-row gap-4 justify-center"></div>
     </div>
+
+    <!-- Re-download Confirmation Modal -->
+    <div id="reDownloadModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full hidden z-50 flex items-center justify-center">
+        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
+            <div class="text-center">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Re-download File?</h3>
+                <div class="mt-2 px-7 py-3"><p class="text-sm text-gray-500">Do you want to download this file again?</p></div>
+                <div class="items-center px-4 py-3 flex justify-center gap-4">
+                    <button id="reDownloadConfirmBtn" class="px-6 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700">Yes</button>
+                    <button id="reDownloadCancelBtn" class="px-6 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-300">No</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -47,74 +62,81 @@
                     ('0' + date.getSeconds()).slice(-2);
             };
 
-            // 1. Define event data in an array of objects.
+            // Define event data with a 'type' property
             const eventData = [
-                {
-                    uid: 'test-event-1-dynamic@example.com',
-                    start: new Date('2025-09-05T10:00:00'),
-                    end: new Date('2025-09-05T11:00:00'),
-                    summary: 'First Dynamic Event',
-                    description: 'This event was generated dynamically.',
-                    location: 'Leumeah, NSW, Australia'
-                },
-                {
-                    uid: 'test-event-2-dynamic@example.com',
-                    start: new Date('2025-09-06T14:00:00'),
-                    end: new Date('2025-09-06T15:30:00'),
-                    summary: 'Second Dynamic Event',
-                    description: 'This event was also generated dynamically.',
-                    location: 'Campbelltown, NSW, Australia'
-                }
+                { uid: 'work-shift-1@example.com', type: 'Work Shift', start: new Date('2025-09-05T09:00:00'), end: new Date('2025-09-05T17:00:00'), summary: 'Morning Shift', description: 'Standard work shift.', location: 'Leumeah, NSW, Australia' },
+                { uid: 'appointment-1@example.com', type: 'Appointment', start: new Date('2025-09-06T14:00:00'), end: new Date('2025-09-06T15:30:00'), summary: 'Dentist Appointment', description: 'Annual check-up.', location: 'Campbelltown, NSW, Australia' }
             ];
 
-            // 2. Function to dynamically create the iCalendar (.ics) content.
             const generateIcsContent = (events) => {
                 const now = new Date();
-                
-                let icsLines = [
-                    'BEGIN:VCALENDAR',
-                    'VERSION:2.0',
-                    'PRODID:-//Test//MyDynamicTestApp//EN'
-                ];
-
+                let icsLines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Test//MyWebApp//EN'];
                 events.forEach(event => {
-                    icsLines.push('BEGIN:VEVENT');
-                    icsLines.push(`UID:${event.uid}`);
-                    icsLines.push(`DTSTAMP:${toIcsUtcDate(now)}`);
-                    icsLines.push(`DTSTART:${toIcsFloatingDate(event.start)}`);
-                    icsLines.push(`DTEND:${toIcsFloatingDate(event.end)}`);
-                    icsLines.push(`SUMMARY:${event.summary}`);
-                    icsLines.push(`DESCRIPTION:${event.description}`);
-                    icsLines.push(`LOCATION:${event.location}`);
-                    icsLines.push('END:VEVENT');
+                    icsLines.push('BEGIN:VEVENT', `UID:${event.uid}`, `DTSTAMP:${toIcsUtcDate(now)}`, `DTSTART:${toIcsFloatingDate(event.start)}`, `DTEND:${toIcsFloatingDate(event.end)}`, `SUMMARY:${event.summary}`, `DESCRIPTION:${event.description}`, `LOCATION:${event.location}`, 'END:VEVENT');
                 });
-
                 icsLines.push('END:VCALENDAR');
                 return icsLines.join('\r\n');
             };
-
-            const icsContent = generateIcsContent(eventData);
-
-            // 3. Create a Blob from the dynamically generated string data.
-            const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-
-            // 4. Create a URL that points to the Blob in the browser's memory.
-            const url = URL.createObjectURL(blob);
-
-            // 5. Create an anchor (<a>) element for the download link.
-            const a = document.createElement('a');
-            a.href = url;
-            a.textContent = 'Import Dynamic Events';
-            a.download = 'dynamic-events-test.ics';
-            a.className = 'inline-block bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors';
             
-            // 6. Add a click listener to clean up the object URL after use to free up memory.
-            a.addEventListener('click', () => {
-                setTimeout(() => URL.revokeObjectURL(url), 100);
-            });
+            const createDownloadLink = (filename, linkText, icsContent) => {
+                const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.textContent = linkText;
+                a.download = filename;
+                a.className = 'inline-block bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors';
+                
+                a.addEventListener('click', (e) => {
+                    if (a.dataset.clicked === 'true') {
+                        e.preventDefault();
+                        const modal = document.getElementById('reDownloadModal');
+                        modal.classList.remove('hidden');
 
-            // 7. Add the link to the page.
-            document.getElementById('link-container').appendChild(a);
+                        const confirmBtn = document.getElementById('reDownloadConfirmBtn');
+                        const cancelBtn = document.getElementById('reDownloadCancelBtn');
+
+                        const newConfirmBtn = confirmBtn.cloneNode(true);
+                        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+
+                        newConfirmBtn.onclick = () => {
+                            // Create a fresh blob and URL to avoid Safari issues
+                            const freshBlob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+                            const freshUrl = URL.createObjectURL(freshBlob);
+                            
+                            // Use window.location to trigger import on iOS
+                            window.location.href = freshUrl;
+                            
+                            // No need for a temporary link here
+                            setTimeout(() => URL.revokeObjectURL(freshUrl), 200);
+                            
+                            modal.classList.add('hidden');
+                        };
+
+                        cancelBtn.onclick = () => {
+                            modal.classList.add('hidden');
+                        };
+                    } else {
+                        a.dataset.clicked = 'true';
+                        a.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                        a.classList.add('bg-gray-400');
+                        // Do NOT revoke the URL on a short timer. Let it live until the user leaves the page.
+                    }
+                });
+
+                document.getElementById('link-container').appendChild(a);
+            };
+
+            const categories = [...new Set(eventData.map(event => event.type))];
+            categories.forEach(category => {
+                const filteredEvents = eventData.filter(event => event.type === category);
+                if (filteredEvents.length > 0) {
+                    const icsContent = generateIcsContent(filteredEvents);
+                    const filename = `${category.toLowerCase().replace(/\s+/g, '-')}.ics`;
+                    const linkText = `Import ${category}s`;
+                    createDownloadLink(filename, linkText, icsContent);
+                }
+            });
         });
     </script>
 </body>
