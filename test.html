@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iOS Download Test (Floating Time)</title>
+    <title>iOS Download Test (Dynamic Content)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
@@ -13,9 +13,9 @@
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
 
     <div class="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
-        <h1 class="text-2xl font-bold text-gray-800 mb-4">iOS Download Test (Floating Time)</h1>
+        <h1 class="text-2xl font-bold text-gray-800 mb-4">iOS Download Test (Dynamic Content)</h1>
         <p class="text-gray-600 mb-6">
-            This version uses "floating" local times for the events, without explicit timezone information.
+            This version dynamically generates the calendar file from a JavaScript array of events.
         </p>
 
         <div id="link-container"></div>
@@ -47,45 +47,55 @@
                     ('0' + date.getSeconds()).slice(-2);
             };
 
-            // 1. Define event dates. These will be interpreted in the browser's local time.
-            const now = new Date();
-            const event1Start = new Date('2025-09-05T10:00:00');
-            const event1End = new Date('2025-09-05T11:00:00');
-            const event2Start = new Date('2025-09-06T14:00:00');
-            const event2End = new Date('2025-09-06T15:30:00');
+            // 1. Define event data in an array of objects.
+            const eventData = [
+                {
+                    uid: 'test-event-1-dynamic@example.com',
+                    start: new Date('2025-09-05T10:00:00'),
+                    end: new Date('2025-09-05T11:00:00'),
+                    summary: 'First Dynamic Event',
+                    description: 'This event was generated dynamically.',
+                    location: 'Leumeah, NSW, Australia'
+                },
+                {
+                    uid: 'test-event-2-dynamic@example.com',
+                    start: new Date('2025-09-06T14:00:00'),
+                    end: new Date('2025-09-06T15:30:00'),
+                    summary: 'Second Dynamic Event',
+                    description: 'This event was also generated dynamically.',
+                    location: 'Campbelltown, NSW, Australia'
+                }
+            ];
 
-            // 2. iCalendar (.ics) data with two separate VEVENT blocks.
-            const icsContent = [
-                'BEGIN:VCALENDAR',
-                'VERSION:2.0',
-                'PRODID:-//Test//MyTestApp//EN',
+            // 2. Function to dynamically create the iCalendar (.ics) content.
+            const generateIcsContent = (events) => {
+                const now = new Date();
                 
-                // --- First Event ---
-                'BEGIN:VEVENT',
-                'UID:test-event-1-floating@example.com',
-                `DTSTAMP:${toIcsUtcDate(now)}`, // DTSTAMP should always be UTC
-                `DTSTART:${toIcsFloatingDate(event1Start)}`, // Floating time
-                `DTEND:${toIcsFloatingDate(event1End)}`,     // Floating time
-                'SUMMARY:First Floating Event',
-                'DESCRIPTION:This is the first of two events.',
-                'LOCATION:Leumeah, NSW, Australia',
-                'END:VEVENT',
+                let icsLines = [
+                    'BEGIN:VCALENDAR',
+                    'VERSION:2.0',
+                    'PRODID:-//Test//MyDynamicTestApp//EN'
+                ];
 
-                // --- Second Event ---
-                'BEGIN:VEVENT',
-                'UID:test-event-2-floating@example.com',
-                `DTSTAMP:${toIcsUtcDate(now)}`, // DTSTAMP should always be UTC
-                `DTSTART:${toIcsFloatingDate(event2Start)}`, // Floating time
-                `DTEND:${toIcsFloatingDate(event2End)}`,     // Floating time
-                'SUMMARY:Second Floating Event',
-                'DESCRIPTION:This is the second of two events.',
-                'LOCATION:Campbelltown, NSW, Australia',
-                'END:VEVENT',
+                events.forEach(event => {
+                    icsLines.push('BEGIN:VEVENT');
+                    icsLines.push(`UID:${event.uid}`);
+                    icsLines.push(`DTSTAMP:${toIcsUtcDate(now)}`);
+                    icsLines.push(`DTSTART:${toIcsFloatingDate(event.start)}`);
+                    icsLines.push(`DTEND:${toIcsFloatingDate(event.end)}`);
+                    icsLines.push(`SUMMARY:${event.summary}`);
+                    icsLines.push(`DESCRIPTION:${event.description}`);
+                    icsLines.push(`LOCATION:${event.location}`);
+                    icsLines.push('END:VEVENT');
+                });
 
-                'END:VCALENDAR'
-            ].join('\r\n');
+                icsLines.push('END:VCALENDAR');
+                return icsLines.join('\r\n');
+            };
 
-            // 3. Create a Blob from the string data.
+            const icsContent = generateIcsContent(eventData);
+
+            // 3. Create a Blob from the dynamically generated string data.
             const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
 
             // 4. Create a URL that points to the Blob in the browser's memory.
@@ -94,8 +104,8 @@
             // 5. Create an anchor (<a>) element for the download link.
             const a = document.createElement('a');
             a.href = url;
-            a.textContent = 'Import Floating Time Events';
-            a.download = 'floating-time-test.ics';
+            a.textContent = 'Import Dynamic Events';
+            a.download = 'dynamic-events-test.ics';
             a.className = 'inline-block bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors';
             
             // 6. Add a click listener to clean up the object URL after use to free up memory.
