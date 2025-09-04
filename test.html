@@ -10,7 +10,7 @@
         body { font-family: 'Inter', sans-serif; }
     </style>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
 
     <div class="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
         <h1 class="text-xl sm:text-2xl font-bold text-gray-800 mb-4">iOS Download Test (Live Data)</h1>
@@ -19,6 +19,12 @@
         </p>
 
         <div id="link-container" class="flex flex-col sm:flex-row gap-4 justify-center"></div>
+        
+        <!-- Container for Raw Shift Data -->
+        <div id="raw-data-output" class="mt-6 text-left hidden">
+            <h2 class="text-lg font-semibold text-gray-700 mb-2">Raw Shift Data</h2>
+            <pre class="bg-gray-100 p-4 rounded-lg text-sm whitespace-pre-wrap break-all"></pre>
+        </div>
     </div>
 
     <!-- Re-download Confirmation Modal -->
@@ -154,11 +160,23 @@
                     if (firstShift) break; // Exit outer loop once found
                 }
 
-                // 5. Generate and display the link
+                // 5. Generate and display the link and raw data
                 if (firstShift) {
                     statusText.textContent = 'Found a shift! Click the link below to import it.';
                     const icsContent = generateIcsContent([firstShift]);
                     createDownloadLink('live-data-test.ics', 'Import Live Shift', icsContent);
+
+                    // Display raw data for comparison
+                    const rawDataContainer = document.getElementById('raw-data-output');
+                    const preElement = rawDataContainer.querySelector('pre');
+                    preElement.textContent = JSON.stringify(firstShift, (key, value) => {
+                        if (value instanceof Date) {
+                            return value.toString(); // Convert Date to a readable string
+                        }
+                        return value;
+                    }, 2);
+                    rawDataContainer.classList.remove('hidden');
+
                 } else {
                     statusText.textContent = 'Could not find any valid shifts in the test sheet.';
                     statusText.classList.add('text-red-500');
