@@ -881,32 +881,48 @@
 
         function createDownloadLink(filename, content, linkText) {
             const downloadLinksDiv = document.getElementById('download-links');
-            const blob = new Blob([content], { type: 'text/calendar' });
-            const url = URL.createObjectURL(blob);
+            const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
+        
             const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
             a.textContent = linkText;
             a.className = 'block w-full bg-blue-200 text-blue-800 font-semibold py-2 px-4 rounded-lg hover:bg-blue-300 transition-colors duration-200 text-center';
-            
-            a.addEventListener('click', (e) => {
-                if (a.dataset.clicked === 'true') {
-                    e.preventDefault();
-                    const modal = document.getElementById('reDownloadModal');
-                    modal.classList.remove('hidden');
-                    document.getElementById('reDownloadConfirmBtn').onclick = () => {
-                        window.location.href = url;
-                        modal.classList.add('hidden');
-                    };
-                    document.getElementById('reDownloadCancelBtn').onclick = () => {
-                        modal.classList.add('hidden');
-                    };
-                } else {
-                    a.dataset.clicked = 'true';
-                    a.classList.remove('bg-blue-200', 'text-blue-800', 'hover:bg-blue-300');
-                    a.classList.add('bg-gray-200', 'text-gray-500', 'hover:bg-gray-300');
-                }
-            });
+            a.download = filename;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const dataUrl = e.target.result;
+                a.href = dataUrl;
+
+                a.addEventListener('click', (evt) => {
+                    if (a.dataset.clicked === 'true') {
+                        evt.preventDefault();
+                        const modal = document.getElementById('reDownloadModal');
+                        modal.classList.remove('hidden');
+
+                        const oldConfirmBtn = document.getElementById('reDownloadConfirmBtn');
+                        const newConfirmBtn = oldConfirmBtn.cloneNode(true);
+                        oldConfirmBtn.parentNode.replaceChild(newConfirmBtn, oldConfirmBtn);
+
+                        newConfirmBtn.onclick = () => {
+                            const tempLink = document.createElement('a');
+                            tempLink.href = dataUrl;
+                            tempLink.download = filename;
+                            document.body.appendChild(tempLink);
+                            tempLink.click();
+                            document.body.removeChild(tempLink);
+                            modal.classList.add('hidden');
+                        };
+                        document.getElementById('reDownloadCancelBtn').onclick = () => {
+                            modal.classList.add('hidden');
+                        };
+                    } else {
+                        a.dataset.clicked = 'true';
+                        a.classList.remove('bg-blue-200', 'text-blue-800', 'hover:bg-blue-300');
+                        a.classList.add('bg-gray-200', 'text-gray-500', 'hover:bg-gray-300');
+                    }
+                });
+            };
+            reader.readAsDataURL(blob);
 
             downloadLinksDiv.appendChild(a);
         }
