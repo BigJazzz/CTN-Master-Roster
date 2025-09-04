@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iOS Download Test (Live Data)</title>
+    <title>iOS Download Test (Corrected Time)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
@@ -13,7 +13,7 @@
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
 
     <div class="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
-        <h1 class="text-xl sm:text-2xl font-bold text-gray-800 mb-4">iOS Download Test (Live Data)</h1>
+        <h1 class="text-xl sm:text-2xl font-bold text-gray-800 mb-4">iOS Download Test (Corrected Time)</h1>
         <p id="status-text" class="text-gray-600 mb-6">
             Fetching first available shift from the spreadsheet...
         </p>
@@ -48,7 +48,6 @@
             const statusText = document.getElementById('status-text');
             const isIOS = (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-            // 1. Update modal text if on an iOS device
             if (isIOS) {
                 document.getElementById('reDownloadTitle').textContent = 'Re-import Event/s?';
                 document.getElementById('reDownloadText').textContent = 'Do you want to re-import the event/s again?';
@@ -56,7 +55,18 @@
 
             // --- Helper Functions ---
             const toIcsUtcDate = (date) => date.toISOString().replace(/[-:.]/g, '').slice(0, 15) + 'Z';
-            const toIcsFloatingDate = (date) => date.toISOString().replace(/[-:.]/g, '').slice(0, 15);
+            
+            // CORRECTED: This function now builds the string from local date components
+            const toIcsFloatingDate = (date) => {
+                const year = date.getFullYear();
+                const month = ('0' + (date.getMonth() + 1)).slice(-2);
+                const day = ('0' + date.getDate()).slice(-2);
+                const hours = ('0' + date.getHours()).slice(-2);
+                const minutes = ('0' + date.getMinutes()).slice(-2);
+                const seconds = ('0' + date.getSeconds()).slice(-2);
+                return `${year}${month}${day}T${hours}${minutes}${seconds}`;
+            };
+
             const parseShiftDetails = (content) => {
                 const regex = /^(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})(?:\s+(.+))?/;
                 return content.match(regex);
@@ -111,12 +121,10 @@
 
             // --- Main Logic: Fetch and Process Data ---
             try {
-                // 2. Define GAS URL and parameters for the test
                 const gasUrl = 'https://script.google.com/macros/s/AKfycbxYIvUCKHqVT5ygPoXSi1F1bkvOOg41eaX-2UQq8Pfr9JHrxd7bALo1Vaey9FNrk3Ds/exec';
-                const testSheetName = '29/06/2025'; // A valid sheet from your app
+                const testSheetName = '29/06/2025';
                 const rosterStartDate = new Date('2025-06-29T00:00:00');
 
-                // 3. Fetch the data from the Google Apps Script
                 const response = await fetch(`${gasUrl}?action=getSheetData&sheetName=${encodeURIComponent(testSheetName)}`);
                 const result = await response.json();
                 if (!result.success) throw new Error(result.error || 'Failed to fetch sheet data.');
@@ -124,13 +132,12 @@
                 const sheetData = result.data;
                 let firstShift = null;
 
-                // 4. Find the first valid shift in the returned data
                 for (let i = 0; i < sheetData.length; i++) {
                     const row = sheetData[i];
-                    for (let j = 1; j < row.length; j++) { // Start at col 1 to skip line numbers
+                    for (let j = 1; j < row.length; j++) {
                         const match = parseShiftDetails(String(row[j]));
                         if (match) {
-                            const dayOffset = j - 1; // Column index to day offset
+                            const dayOffset = j - 1;
                             const eventDate = new Date(rosterStartDate);
                             eventDate.setDate(rosterStartDate.getDate() + dayOffset);
 
@@ -154,24 +161,22 @@
                                 end: endDate,
                                 summary: summary
                             };
-                            break; // Exit inner loop once found
+                            break;
                         }
                     }
-                    if (firstShift) break; // Exit outer loop once found
+                    if (firstShift) break;
                 }
 
-                // 5. Generate and display the link and raw data
                 if (firstShift) {
                     statusText.textContent = 'Found a shift! Click the link below to import it.';
                     const icsContent = generateIcsContent([firstShift]);
                     createDownloadLink('live-data-test.ics', 'Import Live Shift', icsContent);
 
-                    // Display raw data for comparison
                     const rawDataContainer = document.getElementById('raw-data-output');
                     const preElement = rawDataContainer.querySelector('pre');
                     preElement.textContent = JSON.stringify(firstShift, (key, value) => {
                         if (value instanceof Date) {
-                            return value.toString(); // Convert Date to a readable string
+                            return value.toString();
                         }
                         return value;
                     }, 2);
