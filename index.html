@@ -265,8 +265,32 @@
                      const eventDate = new Date(d); 
 
                      if (shiftMatch) {
-                        const startTime = shiftMatch.startTime;
-                        const endTime = shiftMatch.endTime;
+                        const startTime = shiftMatch[1];
+                        const endTime = shiftMatch[2];
+                        const rawDetails = shiftMatch[3] ? shiftMatch[3].trim() : '';
+
+                        let summary = 'Shift';
+                        let description = '';
+
+                        const fxxRegex = /\s*F\d{1,2}$/;
+                        let detailsToProcess = rawDetails.replace(fxxRegex, '').trim();
+
+                        const fourDigitRegex = /^\d{4}/;
+                        if (detailsToProcess.match(fourDigitRegex)) {
+                            const firstSpaceIndex = detailsToProcess.indexOf(' ');
+                            if (firstSpaceIndex !== -1) {
+                                summary = detailsToProcess.substring(0, firstSpaceIndex).trim();
+                                description = detailsToProcess.substring(firstSpaceIndex + 1).trim();
+                            } else {
+                                summary = detailsToProcess;
+                                description = '';
+                            }
+                        } else {
+                            summary = detailsToProcess;
+                            description = '';
+                        }
+
+                        if (!summary) summary = 'Shift';
 
                         const eventStartDate = new Date(eventDate);
                         eventStartDate.setHours(...startTime.split(':'), 0, 0);
@@ -281,8 +305,8 @@
                             uid: `shift-${currentLine}-${dayCounter}@example.com`,
                             start: eventStartDate,
                             end: eventEndDate,
-                            summary: shiftMatch.summary,
-                            description: shiftMatch.description
+                            summary: summary,
+                            description: description
                         });
 
                      } else if (cellContent.toUpperCase() === 'OFF' || cellContent.toUpperCase() === 'ADO') {
@@ -327,37 +351,7 @@
             
             function parseShiftDetails(content) {
                 const regex = /^(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})(?:\s+(.+))?/;
-                const match = content.match(regex);
-                if (!match) return null;
-
-                const startTime = match[1];
-                const endTime = match[2];
-                const rawDetails = match[3] ? match[3].trim() : '';
-
-                let summary = 'Shift';
-                let description = '';
-
-                const fxxRegex = /\s*F\d{1,2}$/;
-                let detailsToProcess = rawDetails.replace(fxxRegex, '').trim();
-
-                const fourDigitRegex = /^\d{4}/;
-                if (detailsToProcess.match(fourDigitRegex)) {
-                    const firstSpaceIndex = detailsToProcess.indexOf(' ');
-                    if (firstSpaceIndex !== -1) {
-                        summary = detailsToProcess.substring(0, firstSpaceIndex).trim();
-                        description = detailsToProcess.substring(firstSpaceIndex + 1).trim();
-                    } else {
-                        summary = detailsToProcess;
-                        description = ''; 
-                    }
-                } else {
-                    summary = detailsToProcess;
-                    description = ''; 
-                }
-
-                if (!summary) summary = 'Shift';
-                
-                return { startTime, endTime, summary, description };
+                return content.match(regex);
             }
 
             function generateIcsContent(events, isAllDay = false) {
@@ -437,4 +431,3 @@
     </script>
 </body>
 </html>
-
