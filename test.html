@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iOS Download Test (Corrected Parsing)</title>
+    <title>iOS Download Test (Final Parsing Logic)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
@@ -13,7 +13,7 @@
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
 
     <div class="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
-        <h1 class="text-xl sm:text-2xl font-bold text-gray-800 mb-4">iOS Download Test (Corrected Parsing)</h1>
+        <h1 class="text-xl sm:text-2xl font-bold text-gray-800 mb-4">iOS Download Test (Final Parsing Logic)</h1>
         <p id="status-text" class="text-gray-600 mb-6">
             Fetching fortnight data for line 8...
         </p>
@@ -172,30 +172,35 @@
                         
                         let summary = 'Shift';
                         let description = '';
+                        
+                        // 1. Strip the F code from the end of the string first.
+                        const fxxRegex = /\s*F\d{1,2}$/;
+                        let detailsToProcess = rawDetails.replace(fxxRegex, '').trim();
 
-                        const fourDigitRegex = /^((\d{4})(\(i\))?)/;
-                        const fourDigitMatch = rawDetails.match(fourDigitRegex);
+                        // 2. Check if the result starts with 4 digits.
+                        const fourDigitRegex = /^\d{4}/;
+                        const fourDigitMatch = detailsToProcess.match(fourDigitRegex);
 
                         if (fourDigitMatch) {
-                            summary = fourDigitMatch[1];
-                            description = rawDetails.replace(fourDigitRegex, '').trim();
-                        } else {
-                            const fxxRegex = /\bF\d{1,2}\b\s*/g;
-                            const detailsWithoutFxx = rawDetails.replace(fxxRegex, '').trim();
-
-                            if (detailsWithoutFxx.length < rawDetails.length) {
-                                // An FXX code was found and removed. The remainder is the description.
-                                summary = 'Shift'; // Default summary
-                                description = detailsWithoutFxx;
+                            const firstSpaceIndex = detailsToProcess.indexOf(' ');
+                            if (firstSpaceIndex !== -1) {
+                                // Split into summary and description at the first space
+                                summary = detailsToProcess.substring(0, firstSpaceIndex).trim();
+                                description = detailsToProcess.substring(firstSpaceIndex + 1).trim();
                             } else {
-                                // No special codes, so the whole thing is the summary.
-                                summary = rawDetails;
+                                // No space, the whole thing is the summary
+                                summary = detailsToProcess;
                                 description = '';
                             }
+                        } else {
+                            // 3. If it doesn't start with 4 digits, the whole thing is the summary.
+                            summary = detailsToProcess;
+                            description = '';
                         }
 
+                        // Final cleanup to avoid empty fields in the ICS file
                         if (!summary) summary = 'Shift';
-                        if (!description) description = ''; // Ensure it is not undefined
+                        if (!description) description = '';
 
                         const startDate = new Date(eventDate);
                         startDate.setHours(...startTime.split(':'), 0, 0);
