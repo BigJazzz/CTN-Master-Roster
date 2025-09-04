@@ -610,9 +610,12 @@
                         document.getElementById('status').textContent = 'Successfully generated calendar files!';
                         document.getElementById('status').className = 'text-lg font-medium text-center text-green-600';
                         
+                        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+                        const actionWord = isIOS ? 'Import' : 'Download';
+
                         if (shiftFileCount > 0) {
                             icsData.shifts.forEach((chunk, i) => {
-                                const linkText = shiftFileCount > 1 ? `Download Shifts (Part ${i + 1})` : 'Download Shifts';
+                                const linkText = shiftFileCount > 1 ? `${actionWord} Shifts (Part ${i + 1})` : `${actionWord} Shifts`;
                                 const filename = shiftFileCount > 1 ? `shifts-part-${i + 1}.ics` : 'shifts.ics';
                                 createDownloadLink(filename, chunk, linkText);
                             });
@@ -620,7 +623,7 @@
     
                         if (dayOffFileCount > 0) {
                             icsData.daysOff.forEach((chunk, i) => {
-                                const linkText = dayOffFileCount > 1 ? `Download Days Off (Part ${i + 1})` : 'Download Days Off';
+                                const linkText = dayOffFileCount > 1 ? `${actionWord} Days Off (Part ${i + 1})` : `${actionWord} Days Off`;
                                 const filename = dayOffFileCount > 1 ? `daysoff-part-${i + 1}.ics` : 'daysoff.ics';
                                 createDownloadLink(filename, chunk, linkText);
                             });
@@ -882,47 +885,60 @@
         function createDownloadLink(filename, content, linkText) {
             const downloadLinksDiv = document.getElementById('download-links');
             const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
-        
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
             const a = document.createElement('a');
             a.textContent = linkText;
             a.className = 'block w-full bg-blue-200 text-blue-800 font-semibold py-2 px-4 rounded-lg hover:bg-blue-300 transition-colors duration-200 text-center';
-            a.download = filename;
 
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const dataUrl = e.target.result;
-                a.href = dataUrl;
+            if (isIOS) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    a.href = e.target.result;
+                };
+                reader.readAsDataURL(blob);
+            } else {
+                const url = URL.createObjectURL(blob);
+                a.href = url;
+                a.download = filename;
+                a.onclick = function() {
+                    setTimeout(() => {
+                        URL.revokeObjectURL(url);
+                    }, 100);
+                };
+            }
+            
+            a.addEventListener('click', (e) => {
+                if (a.dataset.clicked === 'true') {
+                    e.preventDefault();
+                    const modal = document.getElementById('reDownloadModal');
+                    modal.classList.remove('hidden');
 
-                a.addEventListener('click', (evt) => {
-                    if (a.dataset.clicked === 'true') {
-                        evt.preventDefault();
-                        const modal = document.getElementById('reDownloadModal');
-                        modal.classList.remove('hidden');
-
-                        const oldConfirmBtn = document.getElementById('reDownloadConfirmBtn');
-                        const newConfirmBtn = oldConfirmBtn.cloneNode(true);
-                        oldConfirmBtn.parentNode.replaceChild(newConfirmBtn, oldConfirmBtn);
-
-                        newConfirmBtn.onclick = () => {
+                    const confirmBtn = document.getElementById('reDownloadConfirmBtn');
+                    const newConfirmBtn = confirmBtn.cloneNode(true);
+                    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+                    
+                    newConfirmBtn.onclick = () => {
+                         if (!isIOS) {
                             const tempLink = document.createElement('a');
-                            tempLink.href = dataUrl;
-                            tempLink.download = filename;
+                            tempLink.href = a.href;
+                            tempLink.download = a.download;
                             document.body.appendChild(tempLink);
                             tempLink.click();
                             document.body.removeChild(tempLink);
-                            modal.classList.add('hidden');
-                        };
-                        document.getElementById('reDownloadCancelBtn').onclick = () => {
-                            modal.classList.add('hidden');
-                        };
-                    } else {
-                        a.dataset.clicked = 'true';
-                        a.classList.remove('bg-blue-200', 'text-blue-800', 'hover:bg-blue-300');
-                        a.classList.add('bg-gray-200', 'text-gray-500', 'hover:bg-gray-300');
-                    }
-                });
-            };
-            reader.readAsDataURL(blob);
+                        } else {
+                            window.location.href = a.href;
+                        }
+                        modal.classList.add('hidden');
+                    };
+                    document.getElementById('reDownloadCancelBtn').onclick = () => {
+                        modal.classList.add('hidden');
+                    };
+                } else {
+                    a.dataset.clicked = 'true';
+                    a.classList.remove('bg-blue-200', 'text-blue-800', 'hover:bg-blue-300');
+                    a.classList.add('bg-gray-200', 'text-gray-500', 'hover:bg-gray-300');
+                }
+            });
 
             downloadLinksDiv.appendChild(a);
         }
