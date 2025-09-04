@@ -257,7 +257,8 @@
 
                      const rowData = dataMap.get(currentLine);
                      const dayInFortnight = dayCounter % 14;
-                     const columnIndex = dayInFortnight + 1;
+                     const dayOfWeek = d.getDay(); // Sunday is 0, Saturday is 6
+                     const columnIndex = dayInFortnight < 7 ? dayOfWeek + 1 : dayOfWeek + 8;
                      const cellContent = (rowData && rowData[columnIndex]) ? String(rowData[columnIndex]).trim() : '';
                      
                      const shiftMatch = parseShiftDetails(cellContent);
