@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iOS Download Test (Final Parsing Logic)</title>
+    <title>Multi-Line Roster Test</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
@@ -13,16 +13,16 @@
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
 
     <div class="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
-        <h1 class="text-xl sm:text-2xl font-bold text-gray-800 mb-4">iOS Download Test (Final Parsing Logic)</h1>
+        <h1 class="text-xl sm:text-2xl font-bold text-gray-800 mb-4">Multi-Line Roster Test</h1>
         
         <div class="mb-4 flex items-center justify-center gap-2">
-            <label for="lineNumber" class="text-gray-700 font-medium">Line Number:</label>
+            <label for="lineNumber" class="text-gray-700 font-medium">Starting Line:</label>
             <input type="number" id="lineNumber" value="8" class="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
             <button id="fetchBtn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors">Fetch</button>
         </div>
 
         <p id="status-text" class="text-gray-600 mb-6">
-            Enter a line number and click "Fetch".
+            Enter a starting line number. The app will fetch data for that line and the next one.
         </p>
 
         <div id="link-container" class="flex flex-col sm:flex-row gap-4 justify-center"></div>
@@ -151,18 +151,20 @@
                 rawDataOutput.classList.add('hidden');
                 rawDataOutput.querySelector('pre').textContent = '';
 
-                const targetLineNumber = parseInt(document.getElementById('lineNumber').value, 10);
+                const startLineNumber = parseInt(document.getElementById('lineNumber').value, 10);
                 
-                if (isNaN(targetLineNumber)) {
-                    statusText.textContent = 'Please enter a valid line number.';
+                if (isNaN(startLineNumber)) {
+                    statusText.textContent = 'Please enter a valid starting line number.';
                     statusText.classList.add('text-red-500');
                     return;
                 }
 
+                const lineNumbersToFetch = [startLineNumber, startLineNumber + 1];
+
                 // Update UI for new fetch
-                statusText.textContent = `Fetching fortnight data for line ${targetLineNumber}...`;
+                statusText.textContent = `Fetching fortnight data for lines ${lineNumbersToFetch.join(' and ')}...`;
                 statusText.classList.remove('text-red-500');
-                document.getElementById('rawDataHeader').textContent = `Raw Data for Line ${targetLineNumber}`;
+                document.getElementById('rawDataHeader').textContent = `Raw Data for Lines ${lineNumbersToFetch.join(' & ')}`;
 
                 // --- Main Logic: Fetch and Process Data ---
                 try {
@@ -175,96 +177,99 @@
                     if (!result.success) throw new Error(result.error || 'Failed to fetch sheet data.');
 
                     const sheetData = result.data;
-                    const shiftEvents = [];
-                    const dayOffEvents = [];
+                    const allShiftEvents = [];
+                    const allDayOffEvents = [];
 
-                    const targetRow = sheetData.find(row => parseInt(row[0], 10) === targetLineNumber);
+                    for (const targetLineNumber of lineNumbersToFetch) {
+                        const targetRow = sheetData.find(row => parseInt(row[0], 10) === targetLineNumber);
 
-                    if (!targetRow) {
-                        throw new Error(`Could not find data for line ${targetLineNumber}.`);
-                    }
-                    
-                    for (let dayIndex = 0; dayIndex < 14; dayIndex++) {
-                        const columnIndex = dayIndex + 1;
-                        const cellContent = String(targetRow[columnIndex] || '').trim();
-                        const eventDate = new Date(rosterStartDate);
-                        eventDate.setDate(rosterStartDate.getDate() + dayIndex);
-
-                        const shiftMatch = parseShiftDetails(cellContent);
+                        if (!targetRow) {
+                            console.warn(`Could not find data for line ${targetLineNumber}. Skipping.`);
+                            continue;
+                        }
                         
-                        if (shiftMatch) {
-                            const startTime = shiftMatch[1];
-                            const endTime = shiftMatch[2];
-                            const rawDetails = shiftMatch[3] ? shiftMatch[3].trim() : '';
-                            
-                            let summary = 'Shift';
-                            let description = '';
-                            
-                            const fxxRegex = /\s*F\d{1,2}$/;
-                            let detailsToProcess = rawDetails.replace(fxxRegex, '').trim();
+                        for (let dayIndex = 0; dayIndex < 14; dayIndex++) {
+                            const columnIndex = dayIndex + 1;
+                            const cellContent = String(targetRow[columnIndex] || '').trim();
+                            const eventDate = new Date(rosterStartDate);
+                            eventDate.setDate(rosterStartDate.getDate() + dayIndex);
 
-                            const fourDigitRegex = /^\d{4}/;
-                            if (detailsToProcess.match(fourDigitRegex)) {
-                                const firstSpaceIndex = detailsToProcess.indexOf(' ');
-                                if (firstSpaceIndex !== -1) {
-                                    summary = detailsToProcess.substring(0, firstSpaceIndex).trim();
-                                    description = detailsToProcess.substring(firstSpaceIndex + 1).trim();
+                            const shiftMatch = parseShiftDetails(cellContent);
+                            
+                            if (shiftMatch) {
+                                const startTime = shiftMatch[1];
+                                const endTime = shiftMatch[2];
+                                const rawDetails = shiftMatch[3] ? shiftMatch[3].trim() : '';
+                                
+                                let summary = 'Shift';
+                                let description = '';
+                                
+                                const fxxRegex = /\s*F\d{1,2}$/;
+                                let detailsToProcess = rawDetails.replace(fxxRegex, '').trim();
+
+                                const fourDigitRegex = /^\d{4}/;
+                                if (detailsToProcess.match(fourDigitRegex)) {
+                                    const firstSpaceIndex = detailsToProcess.indexOf(' ');
+                                    if (firstSpaceIndex !== -1) {
+                                        summary = detailsToProcess.substring(0, firstSpaceIndex).trim();
+                                        description = detailsToProcess.substring(firstSpaceIndex + 1).trim();
+                                    } else {
+                                        summary = detailsToProcess;
+                                        description = '';
+                                    }
                                 } else {
                                     summary = detailsToProcess;
                                     description = '';
                                 }
-                            } else {
-                                summary = detailsToProcess;
-                                description = '';
-                            }
 
-                            if (!summary) summary = 'Shift';
-                            if (!description) description = '';
+                                if (!summary) summary = 'Shift';
+                                if (!description) description = '';
 
-                            const startDate = new Date(eventDate);
-                            startDate.setHours(...startTime.split(':'), 0, 0);
-                            const endDate = new Date(eventDate);
-                            endDate.setHours(...endTime.split(':'), 0, 0);
-                            if (endDate < startDate) {
-                                endDate.setDate(endDate.getDate() + 1);
+                                const startDate = new Date(eventDate);
+                                startDate.setHours(...startTime.split(':'), 0, 0);
+                                const endDate = new Date(eventDate);
+                                endDate.setHours(...endTime.split(':'), 0, 0);
+                                if (endDate < startDate) {
+                                    endDate.setDate(endDate.getDate() + 1);
+                                }
+                                allShiftEvents.push({
+                                    uid: `shift-${targetLineNumber}-${dayIndex}@example.com`,
+                                    start: startDate,
+                                    end: endDate,
+                                    summary: summary,
+                                    description: description
+                                });
+                            } else if (cellContent.toUpperCase() === 'OFF' || cellContent.toUpperCase() === 'ADO') {
+                                allDayOffEvents.push({
+                                    uid: `dayoff-${targetLineNumber}-${dayIndex}@example.com`,
+                                    start: eventDate,
+                                    summary: cellContent.toUpperCase()
+                                });
                             }
-                            shiftEvents.push({
-                                uid: `shift-${targetLineNumber}-${dayIndex}@example.com`,
-                                start: startDate,
-                                end: endDate,
-                                summary: summary,
-                                description: description
-                            });
-                        } else if (cellContent.toUpperCase() === 'OFF' || cellContent.toUpperCase() === 'ADO') {
-                            dayOffEvents.push({
-                                uid: `dayoff-${targetLineNumber}-${dayIndex}@example.com`,
-                                start: eventDate,
-                                summary: cellContent.toUpperCase()
-                            });
                         }
                     }
                     
-                    if (shiftEvents.length > 0 || dayOffEvents.length > 0) {
+                    if (allShiftEvents.length > 0 || allDayOffEvents.length > 0) {
                         statusText.textContent = 'Found events! Click the links below to import.';
                         
-                        if (shiftEvents.length > 0) {
-                            const icsContent = generateIcsContent(shiftEvents, false);
+                        if (allShiftEvents.length > 0) {
+                            const icsContent = generateIcsContent(allShiftEvents, false);
                             createDownloadLink('shifts.ics', 'Import Shifts', icsContent);
                         }
-                        if (dayOffEvents.length > 0) {
-                            const icsContent = generateIcsContent(dayOffEvents, true);
+                        if (allDayOffEvents.length > 0) {
+                            const icsContent = generateIcsContent(allDayOffEvents, true);
                             createDownloadLink('daysoff.ics', 'Import Days Off', icsContent);
                         }
 
                         const preElement = rawDataOutput.querySelector('pre');
-                        preElement.textContent = JSON.stringify({ shifts: shiftEvents, daysOff: dayOffEvents }, (key, value) => {
+                        preElement.textContent = JSON.stringify({ shifts: allShiftEvents, daysOff: allDayOffEvents }, (key, value) => {
                             if (value instanceof Date) return value.toString();
                             return value;
                         }, 2);
                         rawDataOutput.classList.remove('hidden');
 
                     } else {
-                        statusText.textContent = `Could not find any valid events for line ${targetLineNumber}.`;
+                        statusText.textContent = `Could not find any valid events for lines ${lineNumbersToFetch.join(' and ')}.`;
                         statusText.classList.add('text-red-500');
                     }
 
