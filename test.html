@@ -439,6 +439,7 @@
                                 const startTime = shiftMatch[1];
                                 const endTime = shiftMatch[2]; // Contains optional 'L'
                                 const rawDetails = shiftMatch[3] ? shiftMatch[3].trim() : '';
+                                console.log(`[Line ${currentLine}, Day ${dayCounter}] 1. Raw Details:`, `"${rawDetails}"`);
                                 
                                 let summary = 'Shift';
                                 let description = '';
@@ -446,6 +447,8 @@
                                 if (rawDetails) {
                                     const fxxRegex = /\s*F\d{1,2}$/;
                                     let detailsToProcess = rawDetails.replace(fxxRegex, '').trim();
+                                    console.log(`[Line ${currentLine}, Day ${dayCounter}] 2. After F-Code Removal:`, `"${detailsToProcess}"`);
+
 
                                     if (detailsToProcess) {
                                         const firstSpaceIndex = detailsToProcess.indexOf(' ');
@@ -455,7 +458,12 @@
                                         } else {
                                             summary = detailsToProcess;
                                         }
+                                        console.log(`[Line ${currentLine}, Day ${dayCounter}] 3. Final Parsed Summary:`, `"${summary}"`, `Description:`, `"${description}"`);
+                                    } else {
+                                        console.log(`[Line ${currentLine}, Day ${dayCounter}] 3. No details left to process. Summary defaults to 'Shift'.`);
                                     }
+                                } else {
+                                     console.log(`[Line ${currentLine}, Day ${dayCounter}] 1. No raw details found.`);
                                 }
 
                                 const startDate = new Date(eventDate);
