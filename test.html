@@ -333,7 +333,7 @@
 
                                 if (detailsToProcess.match(fourDigitRegex)) {
                                     const firstSpaceIndex = detailsToProcess.indexOf(' ');
-                                    summary = (firstSpaceIndex !== -1) ? detailsToCsubstring(0, firstSpaceIndex).trim() : detailsToProcess;
+                                    summary = (firstSpaceIndex !== -1) ? detailsToProcess.substring(0, firstSpaceIndex).trim() : detailsToProcess;
                                     description = (firstSpaceIndex !== -1) ? detailsToProcess.substring(firstSpaceIndex + 1).trim() : '';
                                 } else {
                                     summary = detailsToProcess;
