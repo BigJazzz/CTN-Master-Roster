@@ -8,26 +8,49 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
+        select:disabled, input:disabled, button:disabled {
+            background-color: #e9ecef;
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
 
-    <div class="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
+    <div class="bg-white p-8 rounded-lg shadow-md max-w-lg w-full text-center">
         <h1 class="text-xl sm:text-2xl font-bold text-gray-800 mb-4">Multi-Line Roster Test</h1>
         
-        <div class="mb-4 flex items-center justify-center gap-2">
-            <label for="lineNumber" class="text-gray-700 font-medium">Starting Line:</label>
-            <input type="number" id="lineNumber" value="8" class="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
-            <button id="fetchBtn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors">Fetch</button>
+        <div class="space-y-4 text-left">
+            <div>
+                <label for="sheetName" class="block text-sm font-medium text-gray-700 mb-1">Which roster?</label>
+                <select id="sheetName" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" disabled>
+                    <option>Loading...</option>
+                </select>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label for="startDate" class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                    <input type="date" id="startDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" disabled>
+                </div>
+                <div>
+                    <label for="endDate" class="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                    <input type="date" id="endDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" disabled>
+                </div>
+            </div>
+             <div>
+                <label for="lineNumber" class="block text-sm font-medium text-gray-700 mb-1">Starting Line:</label>
+                <input type="number" id="lineNumber" value="8" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+            </div>
         </div>
 
-        <p id="status-text" class="text-gray-600 mb-6">
-            Enter a starting line number. The app will fetch data for that line and the next one.
+        <button id="fetchBtn" class="mt-6 w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700 transition-colors">Fetch Data</button>
+
+        <p id="status-text" class="text-gray-600 my-6 h-5">
+             Select a roster and enter a starting line.
         </p>
 
         <div id="link-container" class="flex flex-col sm:flex-row gap-4 justify-center"></div>
         
-        <!-- Container for Raw Shift Data -->
         <div id="raw-data-output" class="mt-6 text-left hidden">
             <h2 id="rawDataHeader" class="text-lg font-semibold text-gray-700 mb-2">Raw Data</h2>
             <pre class="bg-gray-100 p-4 rounded-lg text-sm whitespace-pre-wrap break-all"></pre>
@@ -51,18 +74,132 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            
-            const statusText = document.getElementById('status-text');
-            const isIOS = (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            const AppState = {
+                gasUrl: 'https://script.google.com/macros/s/AKfycbxYIvUCKHqVT5ygPoXSi1F1bkvOOg41eaX-2UQq8Pfr9JHrxd7bALo1Vaey9FNrk3Ds/exec',
+                rosterDates: []
+            };
 
+            const statusText = document.getElementById('status-text');
+            const sheetSelect = document.getElementById('sheetName');
+            const startDateInput = document.getElementById('startDate');
+            const endDateInput = document.getElementById('endDate');
+            
+            const isIOS = (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
             if (isIOS) {
                 document.getElementById('reDownloadTitle').textContent = 'Re-import Event/s?';
                 document.getElementById('reDownloadText').textContent = 'Do you want to re-import the event/s again?';
             }
-
-            // --- Helper Functions ---
-            const toIcsUtcDate = (date) => date.toISOString().replace(/[-:.]/g, '').slice(0, 15) + 'Z';
             
+            async function initialize() {
+                sheetSelect.innerHTML = '<option>Loading rosters...</option>';
+                try {
+                    const response = await fetch(`${AppState.gasUrl}?action=getSheets`);
+                    const result = await response.json();
+                    if (!result.success) throw new Error(result.error);
+
+                    AppState.rosterDates = result.data
+                        .map(name => parseDMY(name))
+                        .filter(date => date !== null)
+                        .sort((a, b) => a - b);
+                    
+                    sheetSelect.innerHTML = '<option value="">-- Select a roster --</option>';
+                    result.data.forEach(name => {
+                        const option = document.createElement('option');
+                        option.value = name;
+                        option.textContent = name;
+                        sheetSelect.appendChild(option);
+                    });
+                    sheetSelect.disabled = false;
+                } catch(error) {
+                    console.error('Initialization Error:', error);
+                    sheetSelect.innerHTML = `<option>Error loading rosters</option>`;
+                }
+            }
+
+            function parseDMY(dateString) {
+                const parts = dateString.match(/(\d+)/g);
+                if (!parts || parts.length < 3) return null;
+                return new Date(parts[2], parts[1] - 1, parts[0]);
+            }
+
+             sheetSelect.addEventListener('change', () => {
+                const selectedRoster = sheetSelect.value;
+                if (!selectedRoster) {
+                    [startDateInput, endDateInput].forEach(el => el.disabled = true);
+                    return;
+                }
+                
+                const rosterStartDate = parseDMY(selectedRoster);
+                if (rosterStartDate) {
+                    const formattedDate = toInputDateString(rosterStartDate);
+                    startDateInput.value = formattedDate;
+                    startDateInput.min = formattedDate;
+                    endDateInput.min = formattedDate;
+
+                    const currentIndex = AppState.rosterDates.findIndex(d => d.getTime() === rosterStartDate.getTime());
+
+                    if (currentIndex > -1 && currentIndex < AppState.rosterDates.length - 1) {
+                        const nextRosterStartDate = AppState.rosterDates[currentIndex + 1];
+                        const maxEndDate = new Date(nextRosterStartDate);
+                        maxEndDate.setDate(maxEndDate.getDate() - 1);
+                        endDateInput.max = toInputDateString(maxEndDate);
+
+                        const latestStartDate = new Date(maxEndDate);
+                        latestStartDate.setDate(latestStartDate.getDate() - 13);
+                        startDateInput.max = toInputDateString(latestStartDate);
+                    } else {
+                        endDateInput.removeAttribute('max');
+                        startDateInput.removeAttribute('max');
+                    }
+                    
+                    const defaultEndDate = new Date(rosterStartDate);
+                    defaultEndDate.setDate(rosterStartDate.getDate() + 13);
+                    endDateInput.value = toInputDateString(defaultEndDate);
+                    adjustEndDate();
+                }
+                [startDateInput, endDateInput].forEach(el => el.disabled = false);
+            });
+
+            const handleDateChange = () => { adjustEndDate(); };
+            startDateInput.addEventListener('input', handleDateChange);
+            endDateInput.addEventListener('input', handleDateChange);
+
+            function adjustEndDate() {
+                let start = new Date(startDateInput.value + 'T00:00:00');
+                let end = new Date(endDateInput.value + 'T00:00:00');
+
+                if (isNaN(start.getTime())) return;
+
+                if (isNaN(end.getTime()) || end < start) {
+                    end = new Date(start);
+                    end.setDate(start.getDate() + 13);
+                }
+
+                const oneDay = 1000 * 60 * 60 * 24;
+                const diffDays = Math.round((end - start) / oneDay) + 1;
+                const numFortnights = Math.ceil(diffDays / 14);
+                const totalDays = numFortnights * 14;
+                let newEndDate = new Date(start);
+                newEndDate.setDate(start.getDate() + totalDays - 1);
+
+                const maxDateStr = endDateInput.max;
+                if (maxDateStr) {
+                    const maxDate = new Date(maxDateStr + 'T00:00:00');
+                    if (newEndDate > maxDate) newEndDate = maxDate;
+                }
+
+                endDateInput.value = toInputDateString(newEndDate);
+            }
+
+            const toInputDateString = (date) => {
+                const year = date.getFullYear();
+                const month = ('0' + (date.getMonth() + 1)).slice(-2);
+                const day = ('0' + date.getDate()).slice(-2);
+                return `${year}-${month}-${day}`;
+            }
+
+            // --- ICS and Download Helper Functions ---
+            const toIcsUtcDate = (date) => date.toISOString().replace(/[-:.]/g, '').slice(0, 15) + 'Z';
             const toIcsFloatingDate = (date) => {
                 const year = date.getFullYear();
                 const month = ('0' + (date.getMonth() + 1)).slice(-2);
@@ -72,19 +209,16 @@
                 const seconds = ('0' + date.getSeconds()).slice(-2);
                 return `${year}${month}${day}T${hours}${minutes}${seconds}`;
             };
-
             const toIcsAllDayDate = (date) => {
                 const year = date.getFullYear();
                 const month = ('0' + (date.getMonth() + 1)).slice(-2);
                 const day = ('0' + date.getDate()).slice(-2);
                 return `${year}${month}${day}`;
             };
-            
             const parseShiftDetails = (content) => {
                 const regex = /^(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})(?:\s+(.+))?/;
                 return content.match(regex);
             };
-
             const generateIcsContent = (events, isAllDay = false) => {
                 const now = new Date();
                 let icsLines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Test//MyWebApp//EN'];
@@ -104,7 +238,6 @@
                 icsLines.push('END:VCALENDAR');
                 return icsLines.join('\r\n');
             };
-            
             const createDownloadLink = (filename, linkText, icsContent) => {
                 const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
                 const url = URL.createObjectURL(blob);
@@ -113,7 +246,6 @@
                 a.textContent = linkText;
                 a.download = filename;
                 a.className = 'inline-block bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors';
-                
                 a.addEventListener('click', (e) => {
                     if (a.dataset.clicked === 'true') {
                         e.preventDefault();
@@ -143,56 +275,49 @@
             };
 
             const fetchBtn = document.getElementById('fetchBtn');
-
             fetchBtn.addEventListener('click', async () => {
-                // Clear previous results
                 document.getElementById('link-container').innerHTML = '';
                 const rawDataOutput = document.getElementById('raw-data-output');
                 rawDataOutput.classList.add('hidden');
                 rawDataOutput.querySelector('pre').textContent = '';
 
                 const startLineNumber = parseInt(document.getElementById('lineNumber').value, 10);
+                const sheetName = document.getElementById('sheetName').value;
+                const rosterStartDate = new Date(document.getElementById('startDate').value + 'T00:00:00');
+                const rosterEndDate = new Date(document.getElementById('endDate').value + 'T00:00:00');
                 
-                if (isNaN(startLineNumber)) {
-                    statusText.textContent = 'Please enter a valid starting line number.';
+                if (isNaN(startLineNumber) || !sheetName || isNaN(rosterStartDate.getTime())) {
+                    statusText.textContent = 'Please fill in all fields.';
                     statusText.classList.add('text-red-500');
                     return;
                 }
 
                 const lineNumbersToFetch = [startLineNumber, startLineNumber + 1];
-
-                // Update UI for new fetch
-                statusText.textContent = `Fetching fortnight data for lines ${lineNumbersToFetch.join(' and ')}...`;
+                statusText.textContent = `Fetching data for lines ${lineNumbersToFetch.join(' and ')}...`;
                 statusText.classList.remove('text-red-500');
                 document.getElementById('rawDataHeader').textContent = `Raw Data for Lines ${lineNumbersToFetch.join(' & ')}`;
 
-                // --- Main Logic: Fetch and Process Data ---
                 try {
-                    const gasUrl = 'https://script.google.com/macros/s/AKfycbxYIvUCKHqVT5ygPoXSi1F1bkvOOg41eaX-2UQq8Pfr9JHrxd7bALo1Vaey9FNrk3Ds/exec';
-                    const testSheetName = '29/06/2025';
-                    const rosterStartDate = new Date('2025-06-29T00:00:00');
-
-                    const response = await fetch(`${gasUrl}?action=getSheetData&sheetName=${encodeURIComponent(testSheetName)}`);
+                    const response = await fetch(`${AppState.gasUrl}?action=getSheetData&sheetName=${encodeURIComponent(sheetName)}`);
                     const result = await response.json();
                     if (!result.success) throw new Error(result.error || 'Failed to fetch sheet data.');
-
                     const sheetData = result.data;
                     const allShiftEvents = [];
                     const allDayOffEvents = [];
 
-                    for (const targetLineNumber of lineNumbersToFetch) {
-                        const targetRow = sheetData.find(row => parseInt(row[0], 10) === targetLineNumber);
-
-                        if (!targetRow) {
-                            console.warn(`Could not find data for line ${targetLineNumber}. Skipping.`);
-                            continue;
-                        }
+                    const dataMap = new Map(sheetData.map(row => [parseInt(row[0], 10), row]).filter(([key]) => !isNaN(key)));
+                    
+                    let dayCounter = 0;
+                    for (let d = new Date(rosterStartDate); d <= rosterEndDate; d.setDate(d.getDate() + 1)) {
+                         for (const targetLineNumber of lineNumbersToFetch) {
+                            const targetRow = dataMap.get(targetLineNumber);
+                            if (!targetRow) continue;
                         
-                        for (let dayIndex = 0; dayIndex < 14; dayIndex++) {
-                            const columnIndex = dayIndex + 1;
+                            const dayOfWeek = d.getDay();
+                            const dayInFortnight = dayCounter % 14;
+                            const columnIndex = dayInFortnight < 7 ? dayOfWeek + 1 : dayOfWeek + 8;
                             const cellContent = String(targetRow[columnIndex] || '').trim();
-                            const eventDate = new Date(rosterStartDate);
-                            eventDate.setDate(rosterStartDate.getDate() + dayIndex);
+                            const eventDate = new Date(d);
 
                             const shiftMatch = parseShiftDetails(cellContent);
                             
@@ -201,84 +326,60 @@
                                 const endTime = shiftMatch[2];
                                 const rawDetails = shiftMatch[3] ? shiftMatch[3].trim() : '';
                                 
-                                let summary = 'Shift';
-                                let description = '';
-                                
+                                let summary = 'Shift', description = '';
                                 const fxxRegex = /\s*F\d{1,2}$/;
                                 let detailsToProcess = rawDetails.replace(fxxRegex, '').trim();
-
                                 const fourDigitRegex = /^\d{4}/;
+
                                 if (detailsToProcess.match(fourDigitRegex)) {
                                     const firstSpaceIndex = detailsToProcess.indexOf(' ');
-                                    if (firstSpaceIndex !== -1) {
-                                        summary = detailsToProcess.substring(0, firstSpaceIndex).trim();
-                                        description = detailsToProcess.substring(firstSpaceIndex + 1).trim();
-                                    } else {
-                                        summary = detailsToProcess;
-                                        description = '';
-                                    }
+                                    summary = (firstSpaceIndex !== -1) ? detailsToProcess.substring(0, firstSpaceIndex).trim() : detailsToProcess;
+                                    description = (firstSpaceIndex !== -1) ? detailsToProcess.substring(firstSpaceIndex + 1).trim() : '';
                                 } else {
                                     summary = detailsToProcess;
-                                    description = '';
                                 }
 
                                 if (!summary) summary = 'Shift';
-                                if (!description) description = '';
 
                                 const startDate = new Date(eventDate);
                                 startDate.setHours(...startTime.split(':'), 0, 0);
                                 const endDate = new Date(eventDate);
                                 endDate.setHours(...endTime.split(':'), 0, 0);
-                                if (endDate < startDate) {
-                                    endDate.setDate(endDate.getDate() + 1);
-                                }
+                                if (endDate < startDate) endDate.setDate(endDate.getDate() + 1);
+
                                 allShiftEvents.push({
-                                    uid: `shift-${targetLineNumber}-${dayIndex}@example.com`,
-                                    start: startDate,
-                                    end: endDate,
-                                    summary: summary,
-                                    description: description
+                                    uid: `shift-${targetLineNumber}-${dayCounter}@example.com`,
+                                    start: startDate, end: endDate, summary: summary, description: description
                                 });
                             } else if (cellContent.toUpperCase() === 'OFF' || cellContent.toUpperCase() === 'ADO') {
                                 allDayOffEvents.push({
-                                    uid: `dayoff-${targetLineNumber}-${dayIndex}@example.com`,
-                                    start: eventDate,
-                                    summary: cellContent.toUpperCase()
+                                    uid: `dayoff-${targetLineNumber}-${dayCounter}@example.com`,
+                                    start: eventDate, summary: cellContent.toUpperCase()
                                 });
                             }
                         }
+                        dayCounter++;
                     }
                     
                     if (allShiftEvents.length > 0 || allDayOffEvents.length > 0) {
                         statusText.textContent = 'Found events! Click the links below to import.';
-                        
-                        if (allShiftEvents.length > 0) {
-                            const icsContent = generateIcsContent(allShiftEvents, false);
-                            createDownloadLink('shifts.ics', 'Import Shifts', icsContent);
-                        }
-                        if (allDayOffEvents.length > 0) {
-                            const icsContent = generateIcsContent(allDayOffEvents, true);
-                            createDownloadLink('daysoff.ics', 'Import Days Off', icsContent);
-                        }
-
+                        if (allShiftEvents.length > 0) createDownloadLink('shifts.ics', 'Import Shifts', generateIcsContent(allShiftEvents, false));
+                        if (allDayOffEvents.length > 0) createDownloadLink('daysoff.ics', 'Import Days Off', generateIcsContent(allDayOffEvents, true));
                         const preElement = rawDataOutput.querySelector('pre');
-                        preElement.textContent = JSON.stringify({ shifts: allShiftEvents, daysOff: allDayOffEvents }, (key, value) => {
-                            if (value instanceof Date) return value.toString();
-                            return value;
-                        }, 2);
+                        preElement.textContent = JSON.stringify({ shifts: allShiftEvents, daysOff: allDayOffEvents }, null, 2);
                         rawDataOutput.classList.remove('hidden');
-
                     } else {
-                        statusText.textContent = `Could not find any valid events for lines ${lineNumbersToFetch.join(' and ')}.`;
+                        statusText.textContent = `No valid events found for lines ${lineNumbersToFetch.join(' and ')}.`;
                         statusText.classList.add('text-red-500');
                     }
-
                 } catch (error) {
                     console.error('Test script failed:', error);
                     statusText.textContent = `Error: ${error.message}`;
                     statusText.classList.add('text-red-500');
                 }
             });
+
+            initialize();
         });
     </script>
 </body>
