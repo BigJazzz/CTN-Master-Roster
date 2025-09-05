@@ -51,10 +51,6 @@
 
         <div id="link-container" class="flex flex-col sm:flex-row gap-4 justify-center"></div>
         
-        <div id="raw-data-output" class="mt-6 text-left hidden">
-            <h2 id="rawDataHeader" class="text-lg font-semibold text-gray-700 mb-2">Raw Data</h2>
-            <pre class="bg-gray-100 p-4 rounded-lg text-sm whitespace-pre-wrap break-all"></pre>
-        </div>
     </div>
 
     <!-- Date Sanity Check Modal -->
@@ -372,9 +368,6 @@
 
             async function proceedWithFetch() {
                 document.getElementById('link-container').innerHTML = '';
-                const rawDataOutput = document.getElementById('raw-data-output');
-                rawDataOutput.classList.add('hidden');
-                rawDataOutput.querySelector('pre').textContent = '';
 
                 const startLineNumber = parseInt(document.getElementById('lineNumber').value, 10);
                 const sheetName = document.getElementById('sheetName').value;
@@ -389,8 +382,7 @@
 
                 statusText.textContent = `Fetching data starting from line ${startLineNumber}...`;
                 statusText.classList.remove('text-red-500');
-                document.getElementById('rawDataHeader').textContent = `Raw Data Starting from Line ${startLineNumber}`;
-
+               
                 try {
                     const response = await fetch(`${AppState.gasUrl}?action=getSheetData&sheetName=${encodeURIComponent(sheetName)}`);
                     const result = await response.json();
@@ -490,9 +482,6 @@
                         statusText.textContent = 'Found events! Click the links below to import.';
                         if (allShiftEvents.length > 0) createDownloadLink('shifts.ics', 'Import Shifts', generateIcsContent(allShiftEvents, false));
                         if (allDayOffEvents.length > 0) createDownloadLink('daysoff.ics', 'Import Days Off', generateIcsContent(allDayOffEvents, true));
-                        const preElement = rawDataOutput.querySelector('pre');
-                        preElement.textContent = JSON.stringify({ shifts: allShiftEvents, daysOff: allDayOffEvents }, null, 2);
-                        rawDataOutput.classList.remove('hidden');
                     } else {
                         statusText.textContent = `No valid events found starting from line ${startLineNumber}.`;
                         statusText.classList.add('text-red-500');
