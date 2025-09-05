@@ -57,6 +57,21 @@
         </div>
     </div>
 
+    <!-- Date Sanity Check Modal -->
+    <div id="dateSanityCheckModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full hidden z-50 flex items-center justify-center">
+        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
+            <div class="text-center">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Incorrect Start Date</h3>
+                <div class="mt-2 px-7 py-3"><p class="text-sm text-gray-500">The selected start date is not the beginning of a fortnight. Please choose one of the correct dates below to continue.</p></div>
+                <div class="items-center px-4 py-3 space-y-2">
+                    <button id="modalPrevDateBtn" class="w-full px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700"></button>
+                    <button id="modalNextDateBtn" class="w-full px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700"></button>
+                    <button id="modalCancelBtn" class="w-full px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-300">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Re-download Confirmation Modal -->
     <div id="reDownloadModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full hidden z-50 flex items-center justify-center">
         <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
@@ -274,8 +289,78 @@
                 document.getElementById('link-container').appendChild(a);
             };
 
+            function isValidFortnightStartDate(date) {
+                const referenceDate = AppState.rosterDates[0];
+                if (!referenceDate) return false;
+                const oneDay = 1000 * 60 * 60 * 24;
+                const diffDays = Math.round((date.getTime() - referenceDate.getTime()) / oneDay);
+                return diffDays % 14 === 0;
+            }
+
+            function checkAndCorrectDate(onSuccessCallback, onCancelCallback = () => {}) {
+                const start = new Date(startDateInput.value + 'T00:00:00');
+
+                if (isValidFortnightStartDate(start)) {
+                    if (onSuccessCallback) onSuccessCallback();
+                    return;
+                }
+                
+                const oneDay = 1000 * 60 * 60 * 24;
+                const referenceDate = AppState.rosterDates[0];
+                if (!referenceDate) {
+                    statusText.textContent = "Roster reference date not found. Cannot validate.";
+                    statusText.classList.add('text-red-500');
+                    if(onCancelCallback) onCancelCallback();
+                    return;
+                }
+
+                const diffDays = Math.round((start.getTime() - referenceDate.getTime()) / oneDay);
+                const remainder = (diffDays % 14 + 14) % 14; 
+                
+                const prevDate = new Date(start);
+                prevDate.setDate(start.getDate() - remainder);
+                
+                const nextDate = new Date(start);
+                nextDate.setDate(start.getDate() + (14 - remainder));
+
+                const modal = document.getElementById('dateSanityCheckModal');
+                const prevBtn = document.getElementById('modalPrevDateBtn');
+                const nextBtn = document.getElementById('modalNextDateBtn');
+                const cancelBtn = document.getElementById('modalCancelBtn');
+
+                prevBtn.textContent = `Use Previous: ${prevDate.toLocaleDateString()}`;
+                nextBtn.textContent = `Use Next: ${nextDate.toLocaleDateString()}`;
+
+                const newPrevBtn = prevBtn.cloneNode(true);
+                const newNextBtn = nextBtn.cloneNode(true);
+                const newCancelBtn = cancelBtn.cloneNode(true);
+                prevBtn.parentNode.replaceChild(newPrevBtn, prevBtn);
+                nextBtn.parentNode.replaceChild(newNextBtn, nextBtn);
+                cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+
+                newPrevBtn.onclick = () => {
+                    startDateInput.value = toInputDateString(prevDate);
+                    adjustEndDate();
+                    if (onSuccessCallback) onSuccessCallback();
+                    modal.classList.add('hidden');
+                };
+                newNextBtn.onclick = () => {
+                    startDateInput.value = toInputDateString(nextDate);
+                    adjustEndDate();
+                    if (onSuccessCallback) onSuccessCallback();
+                    modal.classList.add('hidden');
+                };
+                newCancelBtn.onclick = () => {
+                    if (onCancelCallback) onCancelCallback();
+                    modal.classList.add('hidden');
+                };
+                
+                modal.classList.remove('hidden');
+            }
+
             const fetchBtn = document.getElementById('fetchBtn');
-            fetchBtn.addEventListener('click', async () => {
+
+            async function proceedWithFetch() {
                 document.getElementById('link-container').innerHTML = '';
                 const rawDataOutput = document.getElementById('raw-data-output');
                 rawDataOutput.classList.add('hidden');
@@ -377,6 +462,10 @@
                     statusText.textContent = `Error: ${error.message}`;
                     statusText.classList.add('text-red-500');
                 }
+            }
+
+            fetchBtn.addEventListener('click', () => {
+                checkAndCorrectDate(proceedWithFetch);
             });
 
             initialize();
