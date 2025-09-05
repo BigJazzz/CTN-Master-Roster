@@ -241,7 +241,7 @@
                 return `${year}${month}${day}`;
             };
             const parseShiftDetails = (content) => {
-                const regex = /^(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})(?:\s+(.+))?/;
+                const regex = /^(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2}L?)(?:\s+(.+))?/;
                 return content.match(regex);
             };
             const generateIcsContent = (events, isAllDay = false) => {
@@ -437,28 +437,31 @@
                             
                             if (shiftMatch) {
                                 const startTime = shiftMatch[1];
-                                const endTime = shiftMatch[2];
+                                const endTime = shiftMatch[2]; // Contains optional 'L'
                                 const rawDetails = shiftMatch[3] ? shiftMatch[3].trim() : '';
                                 
-                                let summary = 'Shift', description = '';
-                                const fxxRegex = /\s*F\d{1,2}$/;
-                                let detailsToProcess = rawDetails.replace(fxxRegex, '').trim();
-                                const fourDigitRegex = /^\d{4}/;
+                                let summary = 'Shift';
+                                let description = '';
+                                
+                                if (rawDetails) {
+                                    const fxxRegex = /\s*F\d{1,2}$/;
+                                    let detailsToProcess = rawDetails.replace(fxxRegex, '').trim();
 
-                                if (detailsToProcess.match(fourDigitRegex)) {
-                                    const firstSpaceIndex = detailsToProcess.indexOf(' ');
-                                    summary = (firstSpaceIndex !== -1) ? detailsToProcess.substring(0, firstSpaceIndex).trim() : detailsToProcess;
-                                    description = (firstSpaceIndex !== -1) ? detailsToProcess.substring(firstSpaceIndex + 1).trim() : '';
-                                } else {
-                                    summary = detailsToProcess;
+                                    if (detailsToProcess) {
+                                        const firstSpaceIndex = detailsToProcess.indexOf(' ');
+                                        if (firstSpaceIndex !== -1) {
+                                            summary = detailsToProcess.substring(0, firstSpaceIndex).trim();
+                                            description = detailsToProcess.substring(firstSpaceIndex + 1).trim();
+                                        } else {
+                                            summary = detailsToProcess;
+                                        }
+                                    }
                                 }
-
-                                if (!summary) summary = 'Shift';
 
                                 const startDate = new Date(eventDate);
                                 startDate.setHours(...startTime.split(':'), 0, 0);
                                 const endDate = new Date(eventDate);
-                                endDate.setHours(...endTime.split(':'), 0, 0);
+                                endDate.setHours(...endTime.replace('L','').split(':'), 0, 0);
                                 if (endDate < startDate) endDate.setDate(endDate.getDate() + 1);
 
                                 allShiftEvents.push({
