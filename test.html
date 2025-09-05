@@ -397,6 +397,8 @@
                     if (!result.success) throw new Error(result.error || 'Failed to fetch sheet data.');
                     const sheetData = result.data;
                     
+                    console.log("Raw spreadsheet data:", sheetData);
+                    
                     const allBlockStrings = AppState.blockDataCache[sheetName] || [];
                     const targetBlockString = allBlockStrings.find(bStr => {
                         const [start, end] = bStr.split('-').map(Number);
